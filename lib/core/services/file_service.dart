@@ -1,7 +1,99 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 
-/// سرویسی برای تحلیل و استخراج اطلاعات از فایل متنی پروژه.
+/// سرویسی برای تحلیل و استخراج اطلاعات از فایل‌ها و پوشه‌های پروژه.
 class FileService {
+  // پسوندهای فایل‌های کدی که باید در خروجی گنجانده شوند
+  static const _codeExtensions = {
+    '.dart', '.yaml', '.json', '.md', '.txt', // General & Flutter
+    '.js', '.ts', '.html', '.css', // Web
+    '.py', '.java', '.kt', '.swift', // Other languages
+    '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.php'
+  };
+
+  // پوشه‌هایی که باید در پیمایش نادیده گرفته شوند
+  static const _excludedDirs = {
+    '.git', '.idea', 'build', 'dist', '.vscode',
+    '.dart_tool', 'linux', 'windows', 'macos', 'ios',
+    'android', // Flutter/Dart specific
+    '__pycache__', 'venv', 'node_modules'
+  };
+
+  /// <<< قابلیت جدید: پردازش یک پوشه کامل >>>
+  /// یک پوشه را پیمایش کرده و محتوای آن را به فرمت متنی استاندارد برنامه تبدیل می‌کند.
+  Future<String> processDirectory(String directoryPath) async {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      throw Exception("پوشه انتخاب شده وجود ندارد: $directoryPath");
+    }
+
+    final List<File> codeFiles = [];
+    final basePath = directory.path;
+
+    // شروع پیمایش بازگشتی برای جمع‌آوری فایل‌ها
+    await for (final entity
+        in directory.list(recursive: true, followLinks: false)) {
+      // نادیده گرفتن پوشه‌های مشخص شده
+      if (entity is Directory &&
+          _excludedDirs.contains(p.basename(entity.path))) {
+        continue;
+      }
+
+      if (entity is File) {
+        // فقط فایل‌هایی با پسوند مجاز را اضافه کن
+        if (_codeExtensions.contains(p.extension(entity.path))) {
+          // اطمینان از اینکه فایل در پوشه مستثنی شده قرار ندارد
+          if (!_isPathInExcludedDir(entity.path, basePath)) {
+            codeFiles.add(entity);
+          }
+        }
+      }
+    }
+
+    // مرتب‌سازی فایل‌ها برای خروجی منظم
+    codeFiles.sort((a, b) => a.path.compareTo(b.path));
+
+    // ساخت خروجی نهایی
+    final buffer = StringBuffer();
+
+    // 1. نوشتن نمودار درختی
+    buffer.writeln("_____________________________________");
+    buffer.writeln("نمودار درختی دایرکتوری :");
+    for (final file in codeFiles) {
+      buffer.writeln(p.relative(file.path, from: basePath));
+    }
+    buffer.writeln("_____________________________________");
+    buffer.writeln();
+
+    // 2. نوشتن محتوای هر فایل
+    for (var i = 0; i < codeFiles.length; i++) {
+      final file = codeFiles[i];
+      final relativePath = p.relative(file.path, from: basePath);
+      buffer.writeln('فایل شماره:${i + 1}');
+      buffer.writeln('/------------------------------------');
+      buffer.writeln('مسیر فایل: $relativePath');
+      buffer.writeln('محتوای فایل:');
+      try {
+        final content = await file.readAsString();
+        buffer.writeln(content);
+      } catch (e) {
+        buffer.writeln('[خطا در خواندن فایل: $e]');
+      }
+      buffer.writeln('------------------------------------/\n');
+    }
+
+    return buffer.toString();
+  }
+
+  /// یک تابع کمکی برای بررسی اینکه آیا مسیر یک فایل درون یکی از پوشه‌های مستثنی شده قرار دارد یا خیر
+  bool _isPathInExcludedDir(String path, String basePath) {
+    final relativePath = p.relative(path, from: basePath);
+    final parts = p.split(relativePath);
+    // اگر هر یک از بخش‌های مسیر در لیست پوشه‌های مستثنی شده باشد، true برمی‌گرداند
+    return parts.any((part) => _excludedDirs.contains(part));
+  }
+
   /// نمودار درختی دایرکتوری پروژه را از متن خام استخراج می‌کند.
   String extractDirectoryTree(String fileContent) {
     try {
@@ -9,7 +101,6 @@ class FileService {
       final endIndex = fileContent.indexOf(
           '_____________________________________', startIndex);
       if (startIndex != -1 && endIndex != -1) {
-        // استخراج متن بین دو نشانگر و حذف خطوط خالی اضافی
         return fileContent.substring(startIndex, endIndex).trim();
       }
       return '';
@@ -22,17 +113,13 @@ class FileService {
   /// محتوای یک فایل خاص را بر اساس مسیر آن از متن خام استخراج می‌کند.
   String extractFileContent(String fullText, String filePath) {
     try {
-      // <<< اصلاح کلیدی: کنترل هر دو نوع جداکننده مسیر ( / و \ ) >>>
-      // این کار باعث می‌شود برنامه هم در ویندوز و هم در سایر سیستم‌عامل‌ها به درستی کار کند.
       final forwardSlashPath = filePath.replaceAll(r'\', '/');
       final backwardSlashPath = filePath.replaceAll(r'/', r'\');
 
       final forwardMarker = 'مسیر فایل:$forwardSlashPath';
       final backwardMarker = 'مسیر فایل:$backwardSlashPath';
 
-      // ابتدا با مارکر استاندارد (/) جستجو کن
       var startIndex = fullText.indexOf(forwardMarker);
-      // اگر پیدا نشد، با مارکر ویندوز (\) جستجو کن
       if (startIndex == -1) {
         startIndex = fullText.indexOf(backwardMarker);
       }
@@ -42,11 +129,9 @@ class FileService {
         return '// محتوای فایل "$filePath" یافت نشد.';
       }
 
-      // پیدا کردن ابتدای محتوای فایل بعد از خط "محتوای فایل:"
       final contentStartIndex =
           fullText.indexOf('محتوای فایل:', startIndex) + 'محتوای فایل:'.length;
 
-      // پیدا کردن انتهای محتوای فایل قبل از جداکننده بعدی
       final contentEndIndex = fullText.indexOf(
           '------------------------------------/', contentStartIndex);
 

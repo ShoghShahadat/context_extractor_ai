@@ -2,7 +2,7 @@ name: context_extractor_ai
 description: "ابزاری هوشمند برای استخراج زمینه کد پروژه برای استفاده در مدل‌های زبان بزرگ."
 publish_to: 'none' 
 
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
@@ -15,7 +15,16 @@ dependencies:
   get: ^4.6.6
 
   # <<< جایگزینی: استفاده از پکیج رسمی فلاتر برای انتخاب فایل >>>
-  file_selector: ^1.0.3
+  # file_selector: ^1.0.3  <- دیگر مستقیما استفاده نمی‌شود، file_picker کامل‌تر است
+
+  # <<< جدید: پکیج قدرتمند برای انتخاب فایل و پوشه >>>
+  file_picker: ^8.0.0+1
+
+  # <<< جدید: برای ذخیره‌سازی تاریخچه مسیرها >>>
+  shared_preferences: ^2.2.3
+
+  # <<< جدید: برای کار بهتر با مسیرهای فایل >>>
+  path: ^1.9.0
   
   # برای ارتباط با Gemini API
   google_generative_ai: ^0.4.1
@@ -46,3 +55,4 @@ flutter:
   assets:
     # فایل .env برای نگهداری کلید API
     - .env
+

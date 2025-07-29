@@ -1,8 +1,6 @@
-import 'dart:convert'; // برای استفاده از utf8
-import 'dart:typed_data'; // برای تبدیل رشته به بایت
+import 'dart:io'; // <<< اصلاح: ایمپورت برای استفاده از کلاس File
 import 'package:clipboard/clipboard.dart';
-// وارد کردن پکیج با یک نام مستعار (fs) برای خوانایی
-import 'package:file_selector/file_selector.dart' as fs;
+import 'package:file_picker/file_picker.dart'; // <<< اصلاح: استفاده از پکیج file_picker
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -30,37 +28,31 @@ class ResultController extends GetxController {
     });
   }
 
-  /// قابلیت جدید: ذخیره کد نهایی در یک فایل متنی
+  /// <<< اصلاح کامل: بازنویسی منطق ذخیره فایل با استفاده از file_picker >>>
   Future<void> saveToFile() async {
     try {
       // نام پیشنهادی برای فایل خروجی
       const String fileName = 'generated_context.txt';
 
-      // <<< اصلاح ۱: استفاده از نوع صحیح FileSaveLocation? برای متغیر >>>
-      final fs.FileSaveLocation? result = await fs.getSaveLocation(
-        suggestedName: fileName,
+      // باز کردن دیالوگ ذخیره فایل و گرفتن مسیر از کاربر
+      final String? outputPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'لطفاً مسیر ذخیره فایل را انتخاب کنید:',
+        fileName: fileName,
       );
 
-      // اگر کاربر پنجره را بست، نتیجه null خواهد بود
-      if (result == null) {
+      // اگر کاربر پنجره را بست، مسیر null خواهد بود
+      if (outputPath == null) {
         Get.snackbar('لغو شد', 'عملیات ذخیره فایل توسط شما لغو شد.');
         return;
       }
 
-      final Uint8List fileData = utf8.encode(generatedCode);
-
-      final fs.XFile textFile = fs.XFile.fromData(
-        fileData,
-        name: fileName,
-        mimeType: 'text/plain',
-      );
-
-      // <<< اصلاح ۲: استفاده از result.path برای دسترسی به مسیر رشته‌ای >>>
-      await textFile.saveTo(result.path);
+      // ایجاد یک فایل در مسیر انتخاب شده و نوشتن محتوا در آن
+      final file = File(outputPath);
+      await file.writeAsString(generatedCode);
 
       Get.snackbar(
         'ذخیره شد!',
-        'فایل با موفقیت در مسیر "${result.path}" ذخیره گردید.',
+        'فایل با موفقیت در مسیر "$outputPath" ذخیره گردید.',
         backgroundColor: Colors.blue,
         colorText: Colors.white,
       );

@@ -1,30 +1,43 @@
-import 'dart:convert';
-import 'package:file_selector/file_selector.dart';
+import 'dart:io'; // <<< اصلاح: ایمپورت کتابخانه dart:io برای استفاده از کلاس File
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/gemini_service.dart';
+import '../../core/services/history_service.dart';
 import '../routes/app_pages.dart';
 
 class HomeController extends GetxController {
   final FileService _fileService = Get.find();
   final GeminiService _geminiService = Get.find();
+  final HistoryService _historyService = Get.find();
 
   final RxBool isLoading = false.obs;
   final RxString statusMessage = 'آماده برای شروع'.obs;
 
+  final RxList<String> recentPaths = <String>[].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadHistory();
+  }
+
+  void loadHistory() {
+    recentPaths.value = _historyService.getHistory();
+  }
+
+  /// انتخاب فایل متنی (عملکرد قبلی)
   Future<void> pickAndProcessProjectFile() async {
-    const XTypeGroup typeGroup = XTypeGroup(
-      label: 'Text Files',
-      extensions: <String>['txt'],
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
     );
 
-    final XFile? file =
-        await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
-
-    if (file == null) {
+    if (result == null || result.files.single.path == null) {
       return;
     }
+    final file = result.files.single;
 
     isLoading.value = true;
     _showProgressDialog();
@@ -32,8 +45,8 @@ class HomeController extends GetxController {
     try {
       statusMessage.value =
           'فایل "${file.name}" انتخاب شد. در حال خواندن محتوا...';
-      final content = await file.readAsString();
-
+      // <<< اصلاح: استفاده از کلاس File که حالا به درستی ایمپورت شده >>>
+      final content = await File(file.path!).readAsString();
       await _analyzeContent(content);
     } catch (e) {
       _showErrorDialog('خطای بحرانی', 'مشکلی در پردازش فایل رخ داد: $e');
@@ -42,15 +55,55 @@ class HomeController extends GetxController {
     }
   }
 
+  /// انتخاب پوشه پروژه
+  Future<void> pickAndProcessProjectDirectory() async {
+    final String? directoryPath = await FilePicker.platform.getDirectoryPath();
+
+    if (directoryPath == null) {
+      return;
+    }
+
+    await processPath(directoryPath);
+  }
+
+  /// پردازش یک مسیر از تاریخچه
+  Future<void> processPathFromHistory(String path) async {
+    await processPath(path);
+  }
+
+  /// متد مرکزی برای پردازش یک مسیر
+  Future<void> processPath(String path) async {
+    isLoading.value = true;
+    _showProgressDialog();
+
+    try {
+      statusMessage.value = 'در حال پردازش پوشه: $path';
+      await _historyService.addPathToHistory(path);
+      loadHistory();
+
+      final content = await _fileService.processDirectory(path);
+      await _analyzeContent(content);
+    } catch (e) {
+      _showErrorDialog('خطای بحرانی', 'مشکلی در پردازش پوشه رخ داد: $e');
+    } finally {
+      _closeDialogAndResetState();
+    }
+  }
+
+  /// منطق مشترک برای تحلیل محتوای تولید شده
   Future<void> _analyzeContent(String content) async {
-    statusMessage.value = 'محتوا خوانده شد. در حال استخراج ساختار پروژه...';
+    statusMessage.value = 'محتوا آماده شد. در حال استخراج ساختار پروژه...';
     final directoryTree = _fileService.extractDirectoryTree(content);
     final pubspecContent =
         _fileService.extractFileContent(content, 'pubspec.yaml');
 
-    if (directoryTree.isEmpty || pubspecContent.isEmpty) {
-      _showErrorDialog('خطای تحلیل فایل', 'ساختار فایل ورودی نامعتبر است.');
+    if (directoryTree.isEmpty) {
+      _showErrorDialog('خطای تحلیل',
+          'ساختار پروژه (نمودار درختی) یافت نشد. لطفاً ورودی را بررسی کنید.');
       return;
+    }
+    if (pubspecContent.isEmpty) {
+      statusMessage.value = 'هشدار: فایل pubspec.yaml یافت نشد.';
     }
 
     statusMessage.value =
@@ -66,8 +119,7 @@ class HomeController extends GetxController {
         arguments: {
           'screens': screens,
           'content': content,
-          'directoryTree':
-              directoryTree, // <<< جدید: ارسال نمودار درختی به صفحه بعد
+          'directoryTree': directoryTree,
         },
       );
     } else {

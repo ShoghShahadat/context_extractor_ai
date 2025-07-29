@@ -1,4 +1,5 @@
 import 'package:context_extractor_ai/core/bindings/initial_binding.dart';
+import 'package:context_extractor_ai/core/services/history_service.dart'; // <<< جدید
 import 'package:context_extractor_ai/presentation/routes/app_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,13 +7,25 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
-  // اطمینان از مقداردهی اولیه ویجت‌ها
+  // اطمینان از مقداردهی اولیه ویجت‌ها قبل از هر کاری
   WidgetsFlutterBinding.ensureInitialized();
 
   // بارگذاری متغیرهای محیطی (برای کلید API جمنای)
   await dotenv.load(fileName: ".env");
 
+  // <<< اصلاح کلیدی: مقداردهی اولیه سرویس‌های ناهمزمان قبل از اجرای برنامه >>>
+  await initServices();
+
   runApp(const MyApp());
+}
+
+/// تابع کمکی برای مقداردهی اولیه سرویس‌های ضروری
+Future<void> initServices() async {
+  // سرویس تاریخچه را مقداردهی اولیه کرده و سپس آن را در GetX ثبت می‌کنیم.
+  final historyService = HistoryService();
+  await historyService.init();
+  Get.put<HistoryService>(historyService, permanent: true);
+  debugPrint("History Service Initialized and Ready.");
 }
 
 class MyApp extends StatelessWidget {
