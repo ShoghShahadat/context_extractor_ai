@@ -4,16 +4,18 @@ import 'package:get/get.dart';
 class ProjectScreen {
   final String screenName;
   final List<String> relatedFiles;
-  final RxBool isSelected; // برای استفاده در UI و مدیریت انتخاب کاربر
+  final String explanation;
+  final RxBool isSelected;
+  final RxBool isExpanded = false.obs; // <<< جدید: برای مدیریت باز/بسته بودن
 
   ProjectScreen({
     required this.screenName,
     required this.relatedFiles,
+    required this.explanation,
   }) : isSelected = false.obs;
 
   /// یک factory constructor برای ساخت نمونه از JSON.
   factory ProjectScreen.fromJson(Map<String, dynamic> json) {
-    // اطمینان از اینکه related_files همیشه یک لیست از رشته‌ها است
     final files = (json['related_files'] as List<dynamic>?)
             ?.map((item) => item.toString())
             .toList() ??
@@ -22,17 +24,21 @@ class ProjectScreen {
     return ProjectScreen(
       screenName: json['screen_name'] as String? ?? 'Unknown Screen',
       relatedFiles: files,
+      explanation:
+          json['explanation'] as String? ?? 'توضیحی توسط هوش مصنوعی ارائه نشد.',
     );
   }
 
   /// یک نام خوانا برای نمایش در UI برمی‌گرداند.
   String get displayName {
     try {
-      // حذف پیشوند و پسوند برای خوانایی بیشتر
       return screenName
               .split('/')
               .last
               .replaceAll('_screen.dart', '')
+              .replaceAll(r'\', '/') // اطمینان از اسلش یکسان
+              .split('/')
+              .last
               .replaceAll('_', ' ')
               .capitalizeFirst ??
           screenName;

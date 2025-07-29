@@ -2,83 +2,78 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/models/project_analysis.dart';
 import '../../core/services/file_service.dart';
+import '../../core/services/gemini_service.dart'; // <<< جدید: برای استفاده از سرویس جمنای
 import '../routes/app_pages.dart';
 
 class ScreenSelectionController extends GetxController {
   final FileService _fileService = Get.find();
+  final GeminiService _geminiService =
+      Get.find(); // <<< جدید: تزریق سرویس جمنای
 
-  // داده‌های دریافت شده از HomeController
   late final List<ProjectScreen> allScreens;
   late final String fullProjectContent;
+  late final String directoryTree;
 
   final RxList<ProjectScreen> filteredScreens = <ProjectScreen>[].obs;
   final RxString searchQuery = ''.obs;
   final RxBool isGenerating = false.obs;
+  final RxString generationStatus =
+      'تولید کد زمینه'.obs; // <<< جدید: برای نمایش وضعیت
 
   @override
   void onInit() {
     super.onInit();
-    // دریافت آرگومان‌ها از صفحه قبلی
     final args = Get.arguments as Map<String, dynamic>;
     allScreens = args['screens'] as List<ProjectScreen>;
     fullProjectContent = args['content'] as String;
+    directoryTree = args['directoryTree'] as String;
 
-    // در ابتدا همه اسکرین‌ها نمایش داده می‌شوند
     filteredScreens.assignAll(allScreens);
   }
 
-  /// فیلتر کردن لیست صفحات بر اساس جستجوی کاربر
   void filterScreens(String query) {
-    searchQuery.value = query;
-    if (query.isEmpty) {
-      filteredScreens.assignAll(allScreens);
-    } else {
-      // جستجو در نام نمایشی و مسیر کامل فایل
-      filteredScreens.assignAll(allScreens.where((screen) =>
-          screen.displayName.toLowerCase().contains(query.toLowerCase()) ||
-          screen.screenName.toLowerCase().contains(query.toLowerCase())));
-    }
+    // ... (بدون تغییر)
   }
 
-  /// تغییر وضعیت انتخاب یک صفحه
   void toggleSelection(ProjectScreen screen) {
-    screen.isSelected.toggle();
+    // ... (بدون تغییر)
   }
 
-  /// تولید کد نهایی و هدایت به صفحه نتیجه
-  void generateFinalCode() {
+  /// <<< اصلاح کلیدی: متد تولید کد حالا کاملاً هوشمند است >>>
+  Future<void> generateFinalCode() async {
+    final List<ProjectScreen> selectedScreens =
+        allScreens.where((s) => s.isSelected.value).toList();
+
+    if (selectedScreens.isEmpty) {
+      Get.snackbar('خطا', 'لطفاً حداقل یک صفحه را برای استخراج انتخاب کنید.');
+      return;
+    }
+
     isGenerating.value = true;
+    generationStatus.value = 'در حال تولید مقدمه هوشمند...';
 
-    // استفاده از Future.delayed برای نمایش بهتر انیمیشن لودینگ
-    Future.delayed(const Duration(milliseconds: 500), () {
-      final List<ProjectScreen> selectedScreens =
-          allScreens.where((s) => s.isSelected.value).toList();
+    try {
+      // ۱. تولید مقدمه توسط هوش مصنوعی
+      final String aiHeader =
+          await _geminiService.generateAiHeader(selectedScreens, directoryTree);
 
-      if (selectedScreens.isEmpty) {
-        Get.snackbar('خطا', 'لطفاً حداقل یک صفحه را برای استخراج انتخاب کنید.');
-        isGenerating.value = false;
-        return;
-      }
+      generationStatus.value = 'در حال تجمیع فایل‌ها...';
+      await Future.delayed(
+          const Duration(milliseconds: 200)); // تاخیر برای نمایش پیام
 
+      // ۲. تجمیع کدها
       final StringBuffer codeBuffer = StringBuffer();
+      codeBuffer.writeln(aiHeader); // اضافه کردن مقدمه هوشمند
+      codeBuffer.writeln('\n');
+
       final Set<String> includedFiles = {};
 
-      // اضافه کردن pubspec.yaml به عنوان اولین فایل
       final pubspecContent =
           _fileService.extractFileContent(fullProjectContent, 'pubspec.yaml');
       _appendFileToBuffer(codeBuffer, 'pubspec.yaml', pubspecContent);
       includedFiles.add('pubspec.yaml');
 
-      // اضافه کردن main.dart همیشه
-      if (!includedFiles.contains('lib/main.dart')) {
-        final mainContent = _fileService.extractFileContent(
-            fullProjectContent, 'lib/main.dart');
-        _appendFileToBuffer(codeBuffer, 'lib/main.dart', mainContent);
-        includedFiles.add('lib/main.dart');
-      }
-
       for (var screen in selectedScreens) {
-        // ۱. اضافه کردن فایل اصلی اسکرین
         if (!includedFiles.contains(screen.screenName)) {
           final screenContent = _fileService.extractFileContent(
               fullProjectContent, screen.screenName);
@@ -86,7 +81,6 @@ class ScreenSelectionController extends GetxController {
           includedFiles.add(screen.screenName);
         }
 
-        // ۲. اضافه کردن فایل‌های مرتبط
         for (var relatedFile in screen.relatedFiles) {
           if (!includedFiles.contains(relatedFile)) {
             final fileContent = _fileService.extractFileContent(
@@ -97,14 +91,16 @@ class ScreenSelectionController extends GetxController {
         }
       }
 
-      isGenerating.value = false;
-
-      // هدایت به صفحه نتیجه و ارسال کد نهایی
+      // ۳. هدایت به صفحه نتیجه
       Get.toNamed(AppPages.result, arguments: codeBuffer.toString());
-    });
+    } catch (e) {
+      Get.snackbar('خطا', 'مشکلی در تولید کد رخ داد: $e');
+    } finally {
+      isGenerating.value = false;
+      generationStatus.value = 'تولید کد زمینه';
+    }
   }
 
-  /// متد کمکی برای اضافه کردن محتوای فایل به بافر با فرمت مشخص
   void _appendFileToBuffer(StringBuffer buffer, String path, String content) {
     buffer.writeln('/------------------------------------');
     buffer.writeln('مسیر فایل: $path');

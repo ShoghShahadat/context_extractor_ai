@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'package:file_selector/file_selector.dart'; // <<< جایگزینی: ایمپورت پکیج جدید
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:iconsax/iconsax.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/gemini_service.dart';
 import '../routes/app_pages.dart';
@@ -14,20 +13,16 @@ class HomeController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxString statusMessage = 'آماده برای شروع'.obs;
 
-  /// متد اصلی برای انتخاب فایل و شروع فرآیند تحلیل با پکیج جدید
   Future<void> pickAndProcessProjectFile() async {
     const XTypeGroup typeGroup = XTypeGroup(
       label: 'Text Files',
       extensions: <String>['txt'],
     );
 
-    debugPrint('[LOG] Calling official file_selector...');
     final XFile? file =
         await openFile(acceptedTypeGroups: <XTypeGroup>[typeGroup]);
 
     if (file == null) {
-      debugPrint('[LOG] File selection was cancelled by the user.');
-      // نیازی به نمایش دیالوگ نیست، چون کاربر خودش لغو کرده است.
       return;
     }
 
@@ -37,52 +32,47 @@ class HomeController extends GetxController {
     try {
       statusMessage.value =
           'فایل "${file.name}" انتخاب شد. در حال خواندن محتوا...';
-      debugPrint('[LOG] File picked: ${file.name}. Reading content...');
       final content = await file.readAsString();
 
       await _analyzeContent(content);
     } catch (e) {
-      debugPrint("[CRITICAL ERROR] in file processing: $e");
       _showErrorDialog('خطای بحرانی', 'مشکلی در پردازش فایل رخ داد: $e');
     } finally {
       _closeDialogAndResetState();
     }
   }
 
-  /// منطق تحلیل که بدون تغییر باقی مانده است
   Future<void> _analyzeContent(String content) async {
     statusMessage.value = 'محتوا خوانده شد. در حال استخراج ساختار پروژه...';
-    debugPrint('[LOG] Content read. Extracting project structure...');
     final directoryTree = _fileService.extractDirectoryTree(content);
     final pubspecContent =
         _fileService.extractFileContent(content, 'pubspec.yaml');
 
     if (directoryTree.isEmpty || pubspecContent.isEmpty) {
-      _showErrorDialog('خطای تحلیل فایل',
-          'ساختار فایل ورودی نامعتبر است یا فایل pubspec.yaml یافت نشد.');
+      _showErrorDialog('خطای تحلیل فایل', 'ساختار فایل ورودی نامعتبر است.');
       return;
     }
 
     statusMessage.value =
         'ساختار استخراج شد. در حال ارسال به هوش مصنوعی جمنای...';
-    debugPrint('[LOG] Structure extracted. Sending to Gemini AI...');
     final screens = await _geminiService.analyzeProjectStructure(
         directoryTree, pubspecContent);
 
     if (screens.isNotEmpty) {
       statusMessage.value = 'تحلیل موفق! ${screens.length} صفحه شناسایی شد.';
-      debugPrint('[LOG] Analysis successful. Found ${screens.length} screens.');
-      Get.back(); // بستن دیالوگ پیشرفت
+      Get.back();
       Get.toNamed(
         AppPages.screenSelection,
         arguments: {
           'screens': screens,
           'content': content,
+          'directoryTree':
+              directoryTree, // <<< جدید: ارسال نمودار درختی به صفحه بعد
         },
       );
     } else {
-      _showErrorDialog('تحلیل ناموفق',
-          'هیچ صفحه‌ای توسط هوش مصنوعی شناسایی نشد. لطفاً ساختار فایل front.txt را بررسی کنید.');
+      _showErrorDialog(
+          'تحلیل ناموفق', 'هیچ صفحه‌ای توسط هوش مصنوعی شناسایی نشد.');
     }
   }
 
