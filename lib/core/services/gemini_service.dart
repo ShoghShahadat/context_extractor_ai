@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
-import '../models/project_analysis.dart';
 
 class GeminiService {
   final String? _apiKey;
@@ -14,192 +13,215 @@ class GeminiService {
       throw Exception("GEMINI_API_KEY not found in .env file");
     }
     return GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       apiKey: _apiKey!,
       generationConfig: GenerationConfig(
         responseMimeType: forJson ? "application/json" : "text/plain",
-        temperature: 0.2,
+        temperature: 0.1, // کاهش دما برای پاسخ قطعی‌تر در تحلیل فایل
       ),
     );
   }
 
-  /// تحلیل ساختار پروژه و استخراج صفحات و فایل‌های مرتبط.
-  Future<List<ProjectScreen>> analyzeProjectStructure(
-      String directoryTree, String pubspecContent) async {
+  /// <<< قابلیت جدید و کلیدی: تحلیل هوشمند برای یافتن فایل‌های مرتبط >>>
+  /// این متد جایگزین متد قبلی می‌شود که فقط به دنبال Screen می‌گشت.
+  Future<List<String>> findRelevantFiles({
+    required String directoryTree,
+    required String userFocus,
+  }) async {
     try {
       final model = _getModel(forJson: true);
-      final prompt = _buildAnalysisPrompt(directoryTree, pubspecContent);
+      final prompt = _buildFileFinderPrompt(directoryTree, userFocus);
       final content = [Content.text(prompt)];
 
-      debugPrint("Sending smart prompt to Gemini for analysis...");
+      debugPrint(
+          "Sending architecture-agnostic prompt to Gemini for file finding...");
       final response = await model.generateContent(content);
 
       if (response.text != null) {
-        debugPrint(
-            "Received smart analysis from Gemini. Response text: ${response.text}");
+        debugPrint("Received relevant file list from Gemini: ${response.text}");
         final decodedJson = json.decode(response.text!);
 
         if (decodedJson is Map<String, dynamic> &&
-            decodedJson.containsKey('screens') &&
-            decodedJson['screens'] is List) {
-          final List<dynamic> screensJson = decodedJson['screens'];
-          return screensJson
-              .map((json) => ProjectScreen.fromJson(json))
-              .toList();
+            decodedJson.containsKey('relevant_files') &&
+            decodedJson['relevant_files'] is List) {
+          // تبدیل لیست dynamic به لیست String
+          return List<String>.from(decodedJson['relevant_files']);
         } else {
           throw Exception(
-              "پاسخ هوش مصنوعی ساختار مورد انتظار (لیست صفحات) را نداشت.");
+              "پاسخ هوش مصنوعی ساختار مورد انتظار (لیست فایل‌ها) را نداشت.");
         }
       } else {
         throw Exception("هوش مصنوعی جمنای یک پاسخ خالی برگرداند.");
       }
     } catch (e) {
-      debugPrint("Error analyzing project with Gemini: $e");
+      debugPrint("Error finding relevant files with Gemini: $e");
       rethrow;
     }
   }
 
-  /// <<< اصلاح کامل: تولید مقدمه هوشمند و جامع برای هوش مصنوعی بعدی >>>
+  /// تولید مقدمه هوشمند و جامع برای هوش مصنوعی بعدی
   Future<String> generateAiHeader({
-    required List<ProjectScreen> selectedScreens,
     required String directoryTree,
     required String userGoal,
     required String pubspecContent,
+    required List<String> aiSuggestedFiles,
+    required List<String> finalSelectedFiles,
   }) async {
     try {
       final model = _getModel(forJson: false);
       final prompt = _buildHeaderPrompt(
-        selectedScreens: selectedScreens,
         directoryTree: directoryTree,
         userGoal: userGoal,
         pubspecContent: pubspecContent,
+        aiSuggestedFiles: aiSuggestedFiles,
+        finalSelectedFiles: finalSelectedFiles,
       );
       final content = [Content.text(prompt)];
 
       debugPrint(
-          "Sending prompt to Gemini for DETAILED AI header generation...");
+          "Sending V3.1 (Direct) prompt to Gemini for AI header generation...");
       final response = await model.generateContent(content);
-      debugPrint("Received detailed AI header from Gemini.");
+      debugPrint("Received V3.1 detailed AI header from Gemini.");
 
       return response.text ?? '# Error: Could not generate AI header.\n';
     } catch (e) {
-      debugPrint("Error generating AI header: $e");
+      debugPrint("Error generating V3.1 AI header: $e");
       return '# Error: An exception occurred while generating the AI header.\n';
     }
   }
 
-  String _buildAnalysisPrompt(String directoryTree, String pubspecContent) {
+  /// <<< پرامپت جدید: مهندسی شده برای یافتن فایل‌ها به صورت معماری-آزاد >>>
+  String _buildFileFinderPrompt(String directoryTree, String userFocus) {
     return """
-    You are an expert Flutter developer and code architect. Your task is to analyze the provided Flutter project structure and identify all the main screens and their related files.
-    For each screen, you MUST provide a brief explanation in PERSIAN about why you grouped those files together.
+    You are a highly experienced Senior Software Architect and an expert in code analysis. Your task is to act as an intelligent file finder for a developer.
+    The developer has provided you with their entire project's directory structure and a description of their current focus or task.
+    Your mission is to identify ALL files that are relevant to the user's focus, regardless of the project's specific architecture (MVC, MVVM, Clean Architecture, feature-based, etc.).
 
     **Analysis Rules:**
-    1.  A "Screen" is a Dart file located in the `lib/presentation/screens/` directory.
-    2.  "Related Files" for a screen include its specific controller(s), binding(s), and any related models or services based on naming conventions.
-    3.  The output MUST be a valid JSON object. Do not include any text or markdown before or after the JSON object.
-    4.  The "explanation" field MUST be in Persian.
+    1.  **Understand the Goal:** Deeply analyze the user's focus: "$userFocus".
+    2.  **Scan the Entire Tree:** Examine the full directory tree provided below.
+    3.  **Identify Core Files:** Find the core files related to the focus. This could be UI files (screens, widgets, views), logic files (controllers, viewmodels, blocs, providers), or business logic files.
+    4.  **Identify Related Dependencies:** Find all dependencies of those core files. This includes:
+        * **Services:** API services, data services, etc.
+        * **Models:** Data transfer objects (DTOs), domain models.
+        * **Repositories:** Data access layers.
+        * **Bindings/Injectors:** Dependency injection files.
+        * **Routes:** Navigation and routing files.
+        * **Utilities:** Helper functions or utility classes used by the core files.
+    5.  **Be Comprehensive:** It is better to include a file that might be slightly related than to miss a critical one.
+    6.  **Output Format:** Your output MUST be a valid JSON object with a single key "relevant_files", which is an array of strings. Each string must be a full path from the project root as it appears in the directory tree. Do not include any other text or markdown.
 
-    **Project Structure:**
+    **User's Current Focus:** "$userFocus"
+
+    **Project Directory Tree:**
     ```
     $directoryTree
     ```
 
-    **Pubspec Content:**
-    ```yaml
-    $pubspecContent
-    ```
-
-    **Required JSON Output Format:**
+    **Example JSON Output:**
     ```json
     {
-      "screens": [
-        {
-          "screen_name": "lib/presentation/screens/auth/login_screen.dart",
-          "related_files": [
-            "lib/controllers/auth/login_controller.dart"
-          ],
-          "explanation": "این فایل‌ها به صفحه ورود مرتبط هستند."
-        }
+      "relevant_files": [
+        "lib/presentation/screens/profile_screen.dart",
+        "lib/presentation/controllers/profile_controller.dart",
+        "lib/core/models/user_profile.dart",
+        "lib/core/services/user_service.dart",
+        "lib/core/bindings/profile_binding.dart"
       ]
     }
     ```
 
-    Now, analyze the provided project structure and generate the JSON output.
+    Now, analyze the provided project structure and user focus, and generate the JSON output of all relevant file paths.
     """;
   }
 
-  /// <<< اصلاح کامل: پرامپت مهندسی‌شده و جامع برای تولید سند زمینه >>>
+  /// <<< پرامپت جدید: مهندسی شده برای تولید سند زمینه نسخه ۳.۰ >>>
+  /// <<< اصلاح کامل: پرامپت مستقیم و قالب-محور برای تزریق داده‌ها >>>
   String _buildHeaderPrompt({
-    required List<ProjectScreen> selectedScreens,
     required String directoryTree,
     required String userGoal,
     required String pubspecContent,
+    required List<String> aiSuggestedFiles,
+    required List<String> finalSelectedFiles,
   }) {
-    final screenPaths = selectedScreens
-        .map((s) => '# - ${s.screenName.replaceAll(r'\', '/')}')
-        .join('\n');
+    // آماده‌سازی رشته‌ها برای تزریق در قالب
+    final aiFilesString = aiSuggestedFiles.map((f) => '# - $f').join('\n');
+    final finalFilesString = finalSelectedFiles.map((f) => '# - $f').join('\n');
+    final indentedPubspec =
+        pubspecContent.split('\n').map((line) => "#   $line").join('\n');
+    final indentedTree =
+        directoryTree.split('\n').map((line) => "# $line").join('\n');
 
+    // دستورالعمل بسیار ساده و مستقیم برای هوش مصنوعی
+    // به همراه یک قالب خام که فقط باید پر شود.
     return """
-    You are an expert AI assistant acting as a "Context Engineer". 
-    Your mission is to create a comprehensive, clear, and detailed header for another AI model. 
-    This header is CRITICAL for the other AI to understand the context of the code it's about to receive. The code it will see is only a partial subset of a larger project, selected by a human user for a specific task.
+You are an AI assistant. Your ONLY task is to fill in the placeholders in the following template with the provided data.
+Once you've completed the template, provide it along with your final analysis for the next AI to review.
 
-    **Your header MUST be structured, detailed, and written in clear English.**
+Explanation:
+This is part of a project that the user intends to develop. Since the project is quite extensive, the user has extracted the relevant files with the help of AI.
 
-    **Instructions:**
+Your task is to provide detailed instructions for the next AI that will review these files so it won't get confused. You should also explain the parts of the project whose files have not been sent to the AI, so it doesn’t get lost.
 
-    1.  **Main Title:** Start with a clear, multi-line delimiter and a title.
-        Example:
-        ############################################################
-        # AI CONTEXT HEADER - V2.0 - PREPARED FOR ANALYSIS
-        ############################################################
+Additionally, you need to describe the user's goal and explain why these particular files were selected. In other words, clarify the purpose of these files and why the user has chosen them for analysis.
 
-    2.  **Section 1: Project Overview**
-        - Greet the AI.
-        - Provide a high-level summary of the project. Use the `pubspec.yaml` content and the overall directory structure to infer the project's purpose.
-        - Mention the main technologies used (e.g., "This is a Flutter project using the GetX state management...").
+These explanations and the completed information will be used by the final AI to help analyze the project, receive the code, and assist in its development.
 
-    3.  **Section 2: The User's Goal & Mission**
-        - This is the most important section.
-        - Clearly state the user's objective. The user has provided a specific goal for this task.
-        - The user's goal is: "$userGoal"
-        - Explain that the following code files have been specifically selected by the user because they believe these files are the most relevant to achieving this goal.
 
-    4.  **Section 3: Provided Context & File Manifest**
-        - State explicitly that the context is partial.
-        - List the primary "Screen(s)" the user focused on. These are the entry points for their task.
-        - The user selected the following screen(s):
-    $screenPaths
-        - Explain that all related files for these screens (controllers, services, models, etc.) are also included.
-        - State that the full directory tree is provided below for complete architectural awareness, even though not all files are included.
 
-    5.  **Section 4: Architectural Blueprint (Directory Tree)**
-        - Title this section clearly (e.g., "Full Project Directory Tree:").
-        - Include the complete directory tree, with each line prefixed by '# '.
-        - Directory Tree:
-    $directoryTree
+**DATA TO INJECT:**
+- [USER_GOAL]: $userGoal
+- [PUBSPEC_CONTENT]:
+$indentedPubspec
+- [AI_SUGGESTED_FILES]:
+$aiFilesString
+- [FINAL_SELECTED_FILES]:
+$finalFilesString
+- [DIRECTORY_TREE]:
+$indentedTree
 
-    6.  **Section 5: Final Instructions for the AI**
-        - Give a clear, final instruction.
-        - Reiterate the user's goal.
-        - Instruct the AI to base its entire analysis, response, or code generation *only* on the provided files and the user's goal.
-        - Example: "Your task is to analyze the provided code in light of the user's goal: '$userGoal'. Please generate your response based *only* on the context given below."
+**TEMPLATE TO COMPLETE:**
+############################################################
+# AI CONTEXT DOCUMENT - V3.2 - DIRECT INJECTION
+############################################################
 
-    7.  **Closing Delimiter:** End with a clear delimiter.
-        Example:
-        # AI CONTEXT HEADER - END
-        ############################################################
+### SECTION 1: USER'S MISSION
+# The user's primary goal is:
+# "$userGoal"
 
-    **INPUTS YOU HAVE RECEIVED:**
-    - User's Goal: "$userGoal"
-    - Selected Screens:
-    $screenPaths
-    - Full Directory Tree:
-    $directoryTree
-    - Pubspec Content:
-    $pubspecContent
+### SECTION 2: PROJECT DEPENDENCIES
+# The full content of `pubspec.yaml` is provided for dependency analysis:
+#
+$indentedPubspec
 
-    Now, generate ONLY the header based on these instructions and the provided inputs. Do not add any other text or commentary.
-    """;
+### SECTION 3: CONTEXT SELECTION PROCESS
+# To generate this context, an AI architect first analyzed the user's goal and suggested the following files:
+#
+# AI-Suggested Files:
+$aiFilesString
+#
+# The user then reviewed these suggestions and confirmed the final list of files below.
+
+### SECTION 4: FINAL AND DEFINITIVE FILE MANIFEST
+# The following files, and ONLY these files, are provided for your analysis. This is the single source of truth.
+#
+# Final User-Selected Files:
+$finalFilesString
+
+### SECTION 5: FULL ARCHITECTURAL BLUEPRINT
+# For complete architectural awareness, the full, unfiltered directory tree of the project is provided below.
+# Use this to understand the project's structure, but base your code analysis ONLY on the files listed in Section 4.
+#
+# Full Project Directory Tree:
+$indentedTree
+
+### SECTION 6: FINAL INSTRUCTIONS
+# Your task is to fulfill the user's goal: "$userGoal".
+# Base your entire analysis, response, and code generation *only* on the files provided in the final manifest (Section 4).
+
+############################################################
+# END OF AI CONTEXT DOCUMENT
+############################################################
+""";
   }
 }

@@ -52,7 +52,7 @@ class HomeScreen extends GetView<HomeController> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        // --- دکمه جدید برای انتخاب پوشه ---
+        // این دکمه اکنون به درستی به متد موجود در کنترلر متصل است
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             minimumSize: const Size(double.infinity, 50),
@@ -62,7 +62,6 @@ class HomeScreen extends GetView<HomeController> {
           label: const Text('انتخاب پوشه پروژه'),
         ),
         const SizedBox(height: 12),
-        // --- دکمه قبلی برای انتخاب فایل متنی ---
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(double.infinity, 50),
@@ -96,7 +95,7 @@ class HomeScreen extends GetView<HomeController> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Iconsax.hierarchy_square2,
+                      Icon(Iconsax.hierarchy1,
                           size: 40, color: Colors.grey.shade400),
                       const SizedBox(height: 8),
                       const Text('تاریخچه‌ای وجود ندارد.'),
@@ -113,7 +112,7 @@ class HomeScreen extends GetView<HomeController> {
                     child: ListTile(
                       leading: const Icon(Iconsax.folder_2, color: Colors.teal),
                       title: Text(
-                        path.split(RegExp(r'[/\\]')).last, // نمایش نام پوشه
+                        path.split(RegExp(r'[/\\]')).last,
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                       subtitle: Text(

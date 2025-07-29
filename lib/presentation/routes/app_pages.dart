@@ -1,25 +1,25 @@
 import 'package:get/get.dart';
 import '../../core/bindings/result_binding.dart';
-import '../../core/bindings/screen_selection_binding.dart';
+import '../../core/bindings/context_editor_binding.dart'; // <<< جدید
 import '../screens/home_screen.dart';
 import '../screens/result_screen.dart';
-import '../screens/screen_selection_screen.dart';
+import '../screens/context_editor_screen.dart'; // <<< جدید
 
 class AppPages {
+  // <<< مسیر جدید جایگزین screenSelection شد >>>
   static const String home = '/';
-  static const String screenSelection = '/select-screens';
+  static const String contextEditor = '/context-editor';
   static const String result = '/result';
 
   static final List<GetPage> routes = [
     GetPage(
       name: home,
       page: () => const HomeScreen(),
-      // بایندینگ اولیه در main.dart اعمال شده است
     ),
     GetPage(
-      name: screenSelection,
-      page: () => const ScreenSelectionScreen(),
-      binding: ScreenSelectionBinding(),
+      name: contextEditor,
+      page: () => const ContextEditorScreen(),
+      binding: ContextEditorBinding(),
     ),
     GetPage(
       name: result,
