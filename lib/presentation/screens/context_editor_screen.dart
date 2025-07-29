@@ -5,7 +5,6 @@ import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/context_editor_controller.dart';
 
-// <<< جدید: ویجت سفارشی برای نمایش درختواره >>>
 class FileTreeView extends StatelessWidget {
   final List<TreeNode> nodes;
   final ContextEditorController controller;
@@ -18,12 +17,16 @@ class FileTreeView extends StatelessWidget {
     return ListView.builder(
       itemCount: nodes.length,
       itemBuilder: (context, index) {
-        return _buildNode(nodes[index]);
+        return _buildNode(nodes[index], context);
       },
     );
   }
 
-  Widget _buildNode(TreeNode node) {
+  Widget _buildNode(TreeNode node, BuildContext context) {
+    // <<< اصلاح: استفاده از رنگ‌های تم >>>
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -37,7 +40,7 @@ class FileTreeView extends StatelessWidget {
                   Checkbox(
                     value: controller.userFinalSelection.contains(node.path),
                     onChanged: (val) => controller.onNodeToggled(node),
-                    activeColor: Colors.teal,
+                    activeColor: colorScheme.primary,
                   )
                 else
                   Icon(
@@ -51,8 +54,8 @@ class FileTreeView extends StatelessWidget {
                   node.isFile ? Iconsax.document : Iconsax.folder,
                   size: 20,
                   color: node.isFile
-                      ? Colors.blue.shade700
-                      : Colors.amber.shade700,
+                      ? colorScheme.secondary
+                      : Colors.orange.shade400,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -78,7 +81,7 @@ class FileTreeView extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: node.children.length,
               itemBuilder: (context, index) {
-                return _buildNode(node.children[index]);
+                return _buildNode(node.children[index], context);
               },
             ),
           ),
@@ -110,15 +113,15 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildControlPanel(),
+          _buildControlPanel(context),
           const VerticalDivider(width: 1),
-          _buildTreeViewPanel(),
+          _buildTreeViewPanel(context),
         ],
       ),
     );
   }
 
-  Widget _buildControlPanel() {
+  Widget _buildControlPanel(BuildContext context) {
     return Expanded(
       flex: 2,
       child: Padding(
@@ -126,18 +129,18 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('۱. تعریف حوزه تمرکز', style: Get.textTheme.titleLarge),
+            Text('۱. تعریف حوزه تمرکز',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'به هوش مصنوعی بگویید روی کدام بخش یا قابلیت پروژه تمرکز کند.',
-              style: Get.textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller.focusController,
               decoration: const InputDecoration(
                 hintText: 'مثال: سیستم لاگین و احراز هویت',
-                border: OutlineInputBorder(),
               ),
               maxLines: 2,
             ),
@@ -150,40 +153,40 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
             const SizedBox(height: 24),
             const Divider(),
             const SizedBox(height: 16),
-            Text('۲. تعریف هدف نهایی', style: Get.textTheme.titleLarge),
+            Text('۲. تعریف هدف نهایی',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'دستورالعمل نهایی خود برای هوش مصنوعی را اینجا بنویسید.',
-              style: Get.textTheme.bodySmall,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller.goalController,
               decoration: const InputDecoration(
                 hintText: 'مثال: قابلیت ورود با گوگل را به این سیستم اضافه کن.',
-                border: OutlineInputBorder(),
               ),
               maxLines: 4,
             ),
             const Spacer(),
-            _buildStatusArea(),
+            _buildStatusArea(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTreeViewPanel() {
+  Widget _buildTreeViewPanel(BuildContext context) {
     return Expanded(
       flex: 3,
       child: Container(
-        color: Colors.grey.shade50,
+        // <<< اصلاح: استفاده از رنگ پس‌زمینه تم >>>
+        color: Theme.of(context).scaffoldBackgroundColor.withAlpha(200),
         child: Obx(() {
           if (controller.treeNodes.isEmpty) {
             return const Center(
                 child: Text('ساختار پروژه برای نمایش وجود ندارد.'));
           }
-          // <<< اصلاح: استفاده از ویجت سفارشی جدید >>>
           return FileTreeView(
             nodes: controller.treeNodes,
             controller: controller,
@@ -193,27 +196,30 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
-  Widget _buildStatusArea() {
+  Widget _buildStatusArea(BuildContext context) {
+    final theme = Theme.of(context);
     return Obx(() {
       final isLoading = controller.isAiFindingFiles.value ||
           controller.isGeneratingFinalCode.value;
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.shade200,
+          // <<< اصلاح: استفاده از رنگ‌های تم >>>
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
             if (isLoading)
-              const SpinKitFadingCircle(color: Colors.teal, size: 24)
+              SpinKitFadingCircle(color: theme.colorScheme.primary, size: 24)
             else
-              const Icon(Iconsax.info_circle, color: Colors.grey),
+              Icon(Iconsax.info_circle,
+                  color: theme.textTheme.bodySmall?.color),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 controller.statusMessage.value,
-                style: TextStyle(color: Colors.grey.shade800),
+                style: TextStyle(color: theme.textTheme.bodyMedium?.color),
               ),
             ),
           ],
@@ -234,8 +240,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
               ? const Text('در حال تولید...')
               : const Text('تولید سند نهایی'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal,
-            foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
         ));

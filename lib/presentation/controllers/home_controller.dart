@@ -45,18 +45,14 @@ class HomeController extends GetxController {
     }
   }
 
-  /// <<< جدید: متد حذف شده بازگردانده شد >>>
-  /// این متد توسط دکمه "انتخاب پوشه" در UI فراخوانی می‌شود.
   Future<void> pickAndProcessProjectDirectory() async {
     final String? directoryPath = await FilePicker.platform.getDirectoryPath();
     if (directoryPath == null) {
-      // کاربر انتخاب را لغو کرده است
       return;
     }
     await processPath(directoryPath);
   }
 
-  /// این متد اکنون توسط متد جدید و تاریخچه فراخوانی می‌شود
   Future<void> processPath(String path) async {
     isLoading.value = true;
     _showProgressDialog('پوشه: $path');
@@ -105,7 +101,8 @@ class HomeController extends GetxController {
     statusMessage.value = 'در حال خواندن و ساختاربندی فایل‌ها...';
     Get.dialog(
       Dialog(
-        backgroundColor: Colors.white,
+        // <<< اصلاح: حذف رنگ پس‌زمینه ثابت برای هماهنگی با تم >>>
+        // backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -119,7 +116,8 @@ class HomeController extends GetxController {
               const SizedBox(height: 8),
               Text(title,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade700)),
+                  style:
+                      TextStyle(color: Get.theme.textTheme.bodySmall?.color)),
               const SizedBox(height: 16),
               Obx(() => Text(statusMessage.value, textAlign: TextAlign.center)),
             ],
