@@ -1,72 +1,132 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
 
 class GeminiService {
-  final String? _apiKey;
+  final List<String> _apiKeys = [
+    "AIzaSyBwXo5GlQbgS6cUWd53yDcg1wFjE8bNg0o",
+    "AIzaSyBtFUS6aAbg0yrP26EUUpq3e-LOEnE8nbc",
+    "AIzaSyDl3q_1XE-Z5tcqUwohRwDT4O8Fqil08YM",
+    "AIzaSyB_1KD_P5TIRhupFRdgM0gW-zbFu_9zHzo",
+    "AIzaSyDy3883QLDktFvIBBG3t3HGsnV8tmSQmY4",
+    "AIzaSyB3JrrU_EuljbkeSmvZmf9ui0cLg1FCOFQ",
+    "AIzaSyBmWBm6brVvDvFELtMtlgbmbO2dtM9it1g",
+    "AIzaSyBj_hHcr4DBRJC9I5qAaeDMnvlWymu_k6c",
+    "AIzaSyDAXiL6g-_JmWH9R27rnz59mibeEO1DVaY",
+    "AIzaSyAnVGp0EXkdtBTX8BpbVFuQ2krIl74fyR8",
+    "AIzaSyDn8U_agAOIQ8oQUgsdHnQzYiHzx0WQUJY",
+    "AIzaSyBwgzmLb1yHBkILyrBmvGX0DrUPCKqHBXM",
+  ];
 
-  GeminiService() : _apiKey = dotenv.env['GEMINI_API_KEY'];
+  int _currentKeyIndex = 0;
 
-  GenerativeModel _getModel({bool forJson = true}) {
-    if (_apiKey == null) {
-      throw Exception("GEMINI_API_KEY not found in .env file");
+  GeminiService() {
+    if (_apiKeys.isNotEmpty) {
+      debugPrint(
+          '✅ ${_apiKeys.length} API keys loaded successfully from code.');
+    } else {
+      debugPrint("❌ FATAL: No Gemini API keys found in the hardcoded list.");
     }
+  }
+
+  GenerativeModel _getModel() {
+    if (_apiKeys.isEmpty) throw Exception("هیچ کلید API برای جمنای یافت نشد.");
+    final currentKey = _apiKeys[_currentKeyIndex];
     return GenerativeModel(
-      model: 'gemini-2.0-flash',
-      apiKey: _apiKey,
+      model: 'gemini-1.5-flash',
+      apiKey: currentKey,
       generationConfig: GenerationConfig(
-        responseMimeType: forJson ? "application/json" : "text/plain",
+        responseMimeType: "application/json",
         temperature: 0.1,
       ),
     );
   }
 
-  /// تحلیل عمیق کل سورس کد برای یافتن فایل‌های مرتبط
+  GenerativeModel _getTextModel() {
+    if (_apiKeys.isEmpty) throw Exception("هیچ کلید API برای جمنای یافت نشد.");
+    final currentKey = _apiKeys[_currentKeyIndex];
+    return GenerativeModel(
+      model: 'gemini-1.5-flash',
+      apiKey: currentKey,
+      generationConfig: GenerationConfig(
+        responseMimeType: "text/plain",
+        temperature: 0.1,
+      ),
+    );
+  }
+
+  void _moveToNextKey() {
+    if (_apiKeys.isNotEmpty) {
+      _currentKeyIndex = (_currentKeyIndex + 1) % _apiKeys.length;
+    }
+  }
+
+  Future<String> _generateWithRetry(String prompt,
+      {bool forJson = true}) async {
+    if (_apiKeys.isEmpty) {
+      throw Exception("هیچ کلید API برای استفاده وجود ندارد.");
+    }
+
+    for (int i = 0; i < _apiKeys.length; i++) {
+      final keyToTryIndex = _currentKeyIndex;
+      try {
+        debugPrint(
+            "Attempt #${i + 1}/${_apiKeys.length}: Using API key at index $keyToTryIndex.");
+
+        final model = forJson ? _getModel() : _getTextModel();
+        final content = [Content.text(prompt)];
+        final response = await model.generateContent(content);
+
+        if (response.text == null) {
+          throw Exception("پاسخ خالی از AI دریافت شد.");
+        }
+
+        debugPrint(
+            "✅ Request successful with API key at index: $keyToTryIndex");
+        return response.text!;
+      } on GenerativeAIException catch (e) {
+        // <<< اصلاح کلیدی: افزودن خطای 503 (سرور مشغول) به لیست خطاهای قابل تکرار >>>
+        if (e.message.contains('API key not valid') ||
+            e.message.contains('quota') ||
+            e.message.contains('503')) {
+          debugPrint(
+              "❌ API key at index $keyToTryIndex failed (Retriable Error): ${e.message}");
+          _moveToNextKey(); // رفتن به کلید بعدی
+          continue; // ادامه حلقه برای تلاش مجدد
+        } else {
+          debugPrint("A non-retriable error occurred: ${e.message}");
+          throw Exception("خطای غیرقابل تکرار از سرویس AI: ${e.message}");
+        }
+      } catch (e) {
+        debugPrint("An unexpected error occurred: $e");
+        rethrow;
+      }
+    }
+
+    throw Exception("تمام کلیدهای API به دلیل محدودیت یا خطا ناموفق بودند.");
+  }
+
   Future<List<String>> findRelevantFiles({
     required String fullProjectContent,
     required String userFocus,
   }) async {
-    try {
-      final model = _getModel(forJson: true);
-      final prompt =
-          _buildFullSourceFileFinderPrompt(fullProjectContent, userFocus);
-      final content = [Content.text(prompt)];
+    final prompt =
+        _buildFullSourceFileFinderPrompt(fullProjectContent, userFocus);
+    final responseText = await _generateWithRetry(prompt, forJson: true);
 
-      debugPrint(
-          "Sending FULL SOURCE prompt to Gemini for deep file analysis...");
-      final response = await model.generateContent(content);
+    final sanitizedJsonString = responseText.replaceAll(r'\', r'\\');
+    final decodedJson = json.decode(sanitizedJsonString);
 
-      if (response.text != null) {
-        debugPrint("Received relevant file list from Gemini: ${response.text}");
-
-        // <<< اصلاح کلیدی: پاکسازی رشته JSON قبل از پارس کردن >>>
-        // این کار با جایگزین کردن بک‌اسلش‌های تکی با دوتایی، از خطای فرمت جلوگیری می‌کند.
-        final sanitizedJsonString = response.text!.replaceAll(r'\', r'\\');
-        final decodedJson = json.decode(sanitizedJsonString);
-
-        if (decodedJson is Map<String, dynamic> &&
-            decodedJson.containsKey('relevant_files') &&
-            decodedJson['relevant_files'] is List) {
-          return List<String>.from(decodedJson['relevant_files']);
-        } else {
-          throw Exception(
-              "پاسخ هوش مصنوعی ساختار مورد انتظار (لیست فایل‌ها) را نداشت.");
-        }
-      } else {
-        throw Exception("هوش مصنوعی جمنای یک پاسخ خالی برگرداند.");
-      }
-    } catch (e) {
-      if (e is GenerativeAIException && e.toString().contains('503')) {
-        throw Exception(
-            "خطای موقت از سرویس AI: سرورها مشغول هستند. لطفاً چند لحظه بعد دوباره تلاش کنید.");
-      }
-      debugPrint("Error finding relevant files with Gemini: $e");
-      rethrow;
+    if (decodedJson is Map<String, dynamic> &&
+        decodedJson.containsKey('relevant_files') &&
+        decodedJson['relevant_files'] is List) {
+      return List<String>.from(decodedJson['relevant_files']);
+    } else {
+      throw Exception(
+          "پاسخ هوش مصنوعی ساختار مورد انتظار (لیست فایل‌ها) را نداشت.");
     }
   }
 
-  /// تولید مقدمه هوشمند و جامع برای هوش مصنوعی بعدی
   Future<String> generateAiHeader({
     required String directoryTree,
     required String userGoal,
@@ -75,34 +135,17 @@ class GeminiService {
     required List<String> finalSelectedFiles,
     required String fullProjectContent,
   }) async {
-    try {
-      final model = _getModel(forJson: false);
-      final prompt = _buildHeaderPromptV2(
-        directoryTree: directoryTree,
-        userGoal: userGoal,
-        pubspecContent: pubspecContent,
-        aiSuggestedFiles: aiSuggestedFiles,
-        finalSelectedFiles: finalSelectedFiles,
-        fullProjectContent: fullProjectContent,
-      );
-      final content = [Content.text(prompt)];
-
-      debugPrint(
-          "Sending V4.0 (Full Context) prompt to Gemini for AI header generation...");
-      final response = await model.generateContent(content);
-      debugPrint("Received V4.0 detailed AI header from Gemini.");
-
-      return response.text ?? '# خطا: امکان تولید هدر AI وجود نداشت.\n';
-    } catch (e) {
-      if (e is GenerativeAIException && e.toString().contains('503')) {
-        return '# خطا: سرور AI مشغول است. لطفاً چند لحظه بعد دوباره تلاش کنید.';
-      }
-      debugPrint("Error generating V4.0 AI header: $e");
-      return '# خطا: یک استثنا در هنگام تولید هدر AI رخ داد: $e\n';
-    }
+    final prompt = _buildHeaderPromptV2(
+      directoryTree: directoryTree,
+      userGoal: userGoal,
+      pubspecContent: pubspecContent,
+      aiSuggestedFiles: aiSuggestedFiles,
+      finalSelectedFiles: finalSelectedFiles,
+      fullProjectContent: fullProjectContent,
+    );
+    return _generateWithRetry(prompt, forJson: false);
   }
 
-  /// پرامپت تحلیل کل سورس کد برای یافتن فایل‌ها
   String _buildFullSourceFileFinderPrompt(
       String fullProjectContent, String userFocus) {
     return """
@@ -148,7 +191,6 @@ class GeminiService {
     """;
   }
 
-  /// پرامپت تولید هدر با تحلیل کل سورس کد
   String _buildHeaderPromptV2({
     required String directoryTree,
     required String userGoal,
