@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/foundation.dart';
+
 import '../../core/models/tree_node.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/gemini_service.dart';
@@ -51,12 +53,14 @@ class ContextEditorController extends GetxController {
     super.onClose();
   }
 
-  /// <<< اصلاح کلیدی: تابع کمکی برای یکسان‌سازی فرمت مسیرها >>>
+  /// <<< اصلاح قطعی: بازنویسی کامل متد برای نرمال‌سازی هوشمند مسیرها >>>
   String _normalizePath(String path) {
-    return path.replaceAll(r'\', '/');
+    // 1. تمام بک‌اسلش‌ها را به اسلش رو به جلو تبدیل می‌کند.
+    String withForwardSlashes = path.replaceAll('\\', '/');
+    // 2. هرگونه تکرار اسلش (دو یا بیشتر) را به یک اسلش واحد کاهش می‌دهد.
+    return withForwardSlashes.replaceAll(RegExp(r'/+'), '/');
   }
 
-  /// <<< اصلاح کامل: بازنویسی منطق ساخت درخت برای دقت و پایداری بیشتر >>>
   void _buildFileTree() {
     final List<String> paths = directoryTree
         .split('\n')
@@ -84,9 +88,7 @@ class ContextEditorController extends GetxController {
           final newNode = TreeNode(
             key: currentPath,
             label: part,
-            path: isFile
-                ? normalizedPath
-                : '', // فقط فایل‌ها مسیر کامل قابل انتخاب دارند
+            path: isFile ? normalizedPath : '',
             isFile: isFile,
             children: [],
           );
@@ -111,17 +113,22 @@ class ContextEditorController extends GetxController {
     }
 
     isAiFindingFiles.value = true;
-    statusMessage.value = 'هوش مصنوعی در حال تحلیل پروژه شماست...';
+    statusMessage.value = 'هوش مصنوعی در حال تحلیل عمیق کل پروژه شماست...';
 
     try {
       final relevantFiles = await _geminiService.findRelevantFiles(
-        directoryTree: directoryTree,
+        fullProjectContent: fullProjectContent,
         userFocus: focusController.text.trim(),
       );
 
-      // <<< اصلاح کلیدی: نرمال‌سازی مسیرهای دریافتی از AI >>>
       final normalizedRelevantFiles =
           relevantFiles.map(_normalizePath).toList();
+
+      debugPrint("--- AI SUGGESTED FILES (NORMALIZED) ---");
+      for (final file in normalizedRelevantFiles) {
+        debugPrint("AI_PATH: '$file'");
+      }
+      debugPrint("------------------------------------");
 
       aiSuggestedFiles.assignAll(normalizedRelevantFiles);
       userFinalSelection.assignAll(normalizedRelevantFiles);
@@ -133,6 +140,7 @@ class ContextEditorController extends GetxController {
       treeNodes.refresh();
     } catch (e) {
       statusMessage.value = 'خطا در تحلیل AI.';
+      debugPrint('An error occurred in findFilesWithAi: $e');
       Get.snackbar('خطای تحلیل', e.toString());
     } finally {
       isAiFindingFiles.value = false;
@@ -150,9 +158,15 @@ class ContextEditorController extends GetxController {
   }
 
   bool _nodeContainsSelection(TreeNode node, List<String> selection) {
-    if (node.isFile && selection.contains(node.path)) {
-      return true;
+    if (node.isFile) {
+      final isSelected = selection.contains(node.path);
+      if (isSelected) {
+        debugPrint(
+            "MATCH FOUND: Tree path '${node.path}' is in the AI selection.");
+      }
+      return isSelected;
     }
+
     for (var child in node.children) {
       if (_nodeContainsSelection(child, selection)) {
         return true;
@@ -194,6 +208,7 @@ class ContextEditorController extends GetxController {
         pubspecContent: pubspecContent,
         aiSuggestedFiles: aiSuggestedFiles,
         finalSelectedFiles: userFinalSelection,
+        fullProjectContent: fullProjectContent,
       );
 
       final StringBuffer codeBuffer = StringBuffer();
@@ -209,6 +224,7 @@ class ContextEditorController extends GetxController {
 
       Get.toNamed(AppPages.result, arguments: codeBuffer.toString());
     } catch (e) {
+      debugPrint('An error occurred in generateFinalCode: $e');
       Get.snackbar('خطا', 'مشکلی در تولید کد رخ داد: $e');
     } finally {
       isGeneratingFinalCode.value = false;

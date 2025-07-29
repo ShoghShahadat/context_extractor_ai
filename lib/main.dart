@@ -36,6 +36,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Context Extractor AI',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
       theme: ThemeData(
         primarySwatch: Colors.teal,
         fontFamily: GoogleFonts.vazirmatn().fontFamily,
