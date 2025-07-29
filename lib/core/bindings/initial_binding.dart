@@ -1,0 +1,18 @@
+import 'package:get/get.dart';
+import '../services/file_service.dart';
+import '../services/gemini_service.dart';
+import '../../presentation/controllers/home_controller.dart';
+
+/// این کلاس مسئولیت تزریق وابستگی‌های اولیه و سراسری برنامه را دارد.
+class InitialBinding extends Bindings {
+  @override
+  void dependencies() {
+    // سرویس‌ها به صورت lazy (تنها در صورت نیاز) و دائمی (fenix: true)
+    // در حافظه قرار می‌گیرند تا در کل چرخه حیات برنامه در دسترس باشند.
+    Get.lazyPut<FileService>(() => FileService(), fenix: true);
+    Get.lazyPut<GeminiService>(() => GeminiService(), fenix: true);
+
+    // کنترلر اصلی برنامه نیز به همین شکل تزریق می‌شود.
+    Get.lazyPut<HomeController>(() => HomeController(), fenix: true);
+  }
+}
