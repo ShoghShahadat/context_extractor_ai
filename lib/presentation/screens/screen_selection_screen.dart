@@ -11,12 +11,32 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('انتخاب صفحات مورد نظر'),
+        title: const Text('انتخاب صفحات و تعریف هدف'),
       ),
       body: Column(
         children: [
+          // <<< بخش جدید: فیلد ورود هدف کاربر >>>
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              controller: controller.goalController,
+              decoration: InputDecoration(
+                labelText: 'هدف شما از این زمینه چیست؟',
+                hintText: 'مثال: افزودن قابلیت جستجو به صفحه لیست محصولات...',
+                prefixIcon: const Icon(Iconsax.buliding),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.teal.withOpacity(0.05),
+              ),
+              maxLines: 3,
+              minLines: 1,
+            ),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'جستجوی صفحه...',
@@ -35,6 +55,8 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
                     child: Text('صفحه‌ای با این نام یافت نشد.'));
               }
               return ListView.builder(
+                padding:
+                    const EdgeInsets.only(bottom: 100), // فاصله برای دکمه شناور
                 itemCount: controller.filteredScreens.length,
                 itemBuilder: (context, index) {
                   final screen = controller.filteredScreens[index];
@@ -62,7 +84,6 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
     );
   }
 
-  /// <<< ویجت سفارشی و نهایی برای حل قطعی مشکل کلیک >>>
   Widget _buildCustomExpansionTile(ProjectScreen screen) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -73,14 +94,12 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
         () => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // هدر سفارشی که کلیک آن فقط برای باز و بسته کردن است
             InkWell(
               onTap: () => controller.toggleExpansion(screen),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
                   children: [
-                    // چک‌باکس که حالا کلیک آن به درستی کار می‌کند
                     Checkbox(
                       value: screen.isSelected.value,
                       onChanged: (bool? value) {
@@ -95,7 +114,6 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
                             fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
-                    // آیکون برای نمایش وضعیت
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Icon(
@@ -109,10 +127,9 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
                 ),
               ),
             ),
-            // محتوای بازشونده با انیمیشن
             AnimatedCrossFade(
-              firstChild: Container(), // حالت بسته
-              secondChild: _buildExpansionContent(screen), // حالت باز
+              firstChild: Container(),
+              secondChild: _buildExpansionContent(screen),
               crossFadeState: screen.isExpanded.value
                   ? CrossFadeState.showSecond
                   : CrossFadeState.showFirst,
@@ -124,7 +141,6 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
     );
   }
 
-  /// ویجت کمکی برای محتوای داخلی
   Widget _buildExpansionContent(ProjectScreen screen) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
@@ -161,7 +177,6 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
     );
   }
 
-  /// ویجت کمکی برای نمایش هر فایل در لیست
   Widget _buildFileListItem(String filePath, {bool isScreen = false}) {
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, top: 4, bottom: 4),

@@ -18,6 +18,9 @@ class ScreenSelectionController extends GetxController {
   final RxBool isGenerating = false.obs;
   final RxString generationStatus = 'تولید کد زمینه'.obs;
 
+  // <<< جدید: کنترلر برای فیلد متنی هدف کاربر >>>
+  late final TextEditingController goalController;
+
   @override
   void onInit() {
     super.onInit();
@@ -27,6 +30,14 @@ class ScreenSelectionController extends GetxController {
     directoryTree = args['directoryTree'] as String;
 
     filteredScreens.assignAll(allScreens);
+    goalController = TextEditingController();
+  }
+
+  @override
+  void onClose() {
+    // کنترلر را برای جلوگیری از نشت حافظه پاک می‌کنیم
+    goalController.dispose();
+    super.onClose();
   }
 
   void filterScreens(String query) {
@@ -43,7 +54,6 @@ class ScreenSelectionController extends GetxController {
     screen.isSelected.toggle();
   }
 
-  /// <<< متد جدید برای مدیریت باز و بسته شدن آیتم‌ها >>>
   void toggleExpansion(ProjectScreen screen) {
     screen.isExpanded.toggle();
   }
@@ -57,12 +67,28 @@ class ScreenSelectionController extends GetxController {
       return;
     }
 
+    // <<< جدید: دریافت هدف کاربر از کنترلر >>>
+    final String userGoal = goalController.text.trim();
+    if (userGoal.isEmpty) {
+      Get.snackbar('خطا', 'لطفاً هدف خود را در فیلد مربوطه وارد کنید.');
+      return;
+    }
+
     isGenerating.value = true;
     generationStatus.value = 'در حال تولید مقدمه هوشمند...';
 
     try {
-      final String aiHeader =
-          await _geminiService.generateAiHeader(selectedScreens, directoryTree);
+      // <<< جدید: استخراج محتوای pubspec برای ارسال به سرویس >>>
+      final pubspecContent =
+          _fileService.extractFileContent(fullProjectContent, 'pubspec.yaml');
+
+      // <<< جدید: ارسال هدف کاربر و محتوای pubspec به سرویس >>>
+      final String aiHeader = await _geminiService.generateAiHeader(
+        selectedScreens: selectedScreens,
+        directoryTree: directoryTree,
+        userGoal: userGoal,
+        pubspecContent: pubspecContent,
+      );
 
       generationStatus.value = 'در حال تجمیع فایل‌ها...';
       await Future.delayed(const Duration(milliseconds: 200));
@@ -73,8 +99,6 @@ class ScreenSelectionController extends GetxController {
 
       final Set<String> includedFiles = {};
 
-      final pubspecContent =
-          _fileService.extractFileContent(fullProjectContent, 'pubspec.yaml');
       _appendFileToBuffer(codeBuffer, 'pubspec.yaml', pubspecContent);
       includedFiles.add('pubspec.yaml');
 

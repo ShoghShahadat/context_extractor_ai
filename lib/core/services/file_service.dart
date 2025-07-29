@@ -20,7 +20,6 @@ class FileService {
     '__pycache__', 'venv', 'node_modules'
   };
 
-  /// <<< قابلیت جدید: پردازش یک پوشه کامل >>>
   /// یک پوشه را پیمایش کرده و محتوای آن را به فرمت متنی استاندارد برنامه تبدیل می‌کند.
   Future<String> processDirectory(String directoryPath) async {
     final directory = Directory(directoryPath);
@@ -31,19 +30,15 @@ class FileService {
     final List<File> codeFiles = [];
     final basePath = directory.path;
 
-    // شروع پیمایش بازگشتی برای جمع‌آوری فایل‌ها
     await for (final entity
         in directory.list(recursive: true, followLinks: false)) {
-      // نادیده گرفتن پوشه‌های مشخص شده
       if (entity is Directory &&
           _excludedDirs.contains(p.basename(entity.path))) {
         continue;
       }
 
       if (entity is File) {
-        // فقط فایل‌هایی با پسوند مجاز را اضافه کن
         if (_codeExtensions.contains(p.extension(entity.path))) {
-          // اطمینان از اینکه فایل در پوشه مستثنی شده قرار ندارد
           if (!_isPathInExcludedDir(entity.path, basePath)) {
             codeFiles.add(entity);
           }
@@ -51,13 +46,10 @@ class FileService {
       }
     }
 
-    // مرتب‌سازی فایل‌ها برای خروجی منظم
     codeFiles.sort((a, b) => a.path.compareTo(b.path));
 
-    // ساخت خروجی نهایی
     final buffer = StringBuffer();
 
-    // 1. نوشتن نمودار درختی
     buffer.writeln("_____________________________________");
     buffer.writeln("نمودار درختی دایرکتوری :");
     for (final file in codeFiles) {
@@ -66,13 +58,13 @@ class FileService {
     buffer.writeln("_____________________________________");
     buffer.writeln();
 
-    // 2. نوشتن محتوای هر فایل
     for (var i = 0; i < codeFiles.length; i++) {
       final file = codeFiles[i];
       final relativePath = p.relative(file.path, from: basePath);
       buffer.writeln('فایل شماره:${i + 1}');
       buffer.writeln('/------------------------------------');
-      buffer.writeln('مسیر فایل: $relativePath');
+      // <<< اصلاح کلیدی: حذف فاصله اضافی بعد از دو نقطه >>>
+      buffer.writeln('مسیر فایل:$relativePath');
       buffer.writeln('محتوای فایل:');
       try {
         final content = await file.readAsString();
@@ -86,15 +78,12 @@ class FileService {
     return buffer.toString();
   }
 
-  /// یک تابع کمکی برای بررسی اینکه آیا مسیر یک فایل درون یکی از پوشه‌های مستثنی شده قرار دارد یا خیر
   bool _isPathInExcludedDir(String path, String basePath) {
     final relativePath = p.relative(path, from: basePath);
     final parts = p.split(relativePath);
-    // اگر هر یک از بخش‌های مسیر در لیست پوشه‌های مستثنی شده باشد، true برمی‌گرداند
     return parts.any((part) => _excludedDirs.contains(part));
   }
 
-  /// نمودار درختی دایرکتوری پروژه را از متن خام استخراج می‌کند.
   String extractDirectoryTree(String fileContent) {
     try {
       final startIndex = fileContent.indexOf('نمودار درختی دایرکتوری :');
@@ -110,7 +99,6 @@ class FileService {
     }
   }
 
-  /// محتوای یک فایل خاص را بر اساس مسیر آن از متن خام استخراج می‌کند.
   String extractFileContent(String fullText, String filePath) {
     try {
       final forwardSlashPath = filePath.replaceAll(r'\', '/');
