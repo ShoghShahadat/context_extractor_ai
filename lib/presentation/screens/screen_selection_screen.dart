@@ -38,7 +38,7 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
                 itemCount: controller.filteredScreens.length,
                 itemBuilder: (context, index) {
                   final screen = controller.filteredScreens[index];
-                  return _buildScreenTile(screen);
+                  return _buildCustomExpansionTile(screen);
                 },
               );
             }),
@@ -62,76 +62,106 @@ class ScreenSelectionScreen extends GetView<ScreenSelectionController> {
     );
   }
 
-  /// <<< ویجت اصلاح شده برای رفع مشکل عدم انتخاب >>>
-  Widget _buildScreenTile(ProjectScreen screen) {
+  /// <<< ویجت سفارشی و نهایی برای حل قطعی مشکل کلیک >>>
+  Widget _buildCustomExpansionTile(ProjectScreen screen) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
-      clipBehavior: Clip.antiAlias, // برای جلوگیری از بیرون زدن رنگ
-      child: ExpansionTile(
-        key: PageStorageKey(screen.screenName),
-        // <<< اصلاح کلیدی: ساختن یک عنوان سفارشی برای حل تداخل کلیک >>>
-        title: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Obx(
+        () => Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Checkbox حالا در یک Row قرار دارد و کلیک آن به درستی کار می‌کند
-            Obx(() => Checkbox(
-                  value: screen.isSelected.value,
-                  onChanged: (bool? value) {
-                    controller.toggleSelection(screen);
-                  },
-                  activeColor: Colors.teal,
-                )),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                screen.displayName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        // حذف کردن padding پیش‌فرض برای هماهنگی با ساختار جدید
-        tilePadding: const EdgeInsets.only(left: 16.0),
-        childrenPadding: const EdgeInsets.only(bottom: 16),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            // هدر سفارشی که کلیک آن فقط برای باز و بسته کردن است
+            InkWell(
+              onTap: () => controller.toggleExpansion(screen),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
                   children: [
-                    Icon(Iconsax.message_question,
-                        size: 18, color: Colors.teal.shade700),
-                    const SizedBox(width: 8),
+                    // چک‌باکس که حالا کلیک آن به درستی کار می‌کند
+                    Checkbox(
+                      value: screen.isSelected.value,
+                      onChanged: (bool? value) {
+                        controller.toggleSelection(screen);
+                      },
+                      activeColor: Colors.teal,
+                    ),
                     Expanded(
                       child: Text(
-                        screen.explanation,
-                        style: TextStyle(
-                            fontStyle: FontStyle.italic,
-                            color: Colors.grey.shade700),
+                        screen.displayName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    // آیکون برای نمایش وضعیت
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Icon(
+                        screen.isExpanded.value
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 24),
-                Text(
-                  'فایل‌های مرتبط (${screen.relatedFiles.length + 1}):',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                _buildFileListItem(screen.screenName, isScreen: true),
-                ...screen.relatedFiles.map((file) => _buildFileListItem(file)),
-              ],
+              ),
             ),
-          )
+            // محتوای بازشونده با انیمیشن
+            AnimatedCrossFade(
+              firstChild: Container(), // حالت بسته
+              secondChild: _buildExpansionContent(screen), // حالت باز
+              crossFadeState: screen.isExpanded.value
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 300),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ویجت کمکی برای محتوای داخلی
+  Widget _buildExpansionContent(ProjectScreen screen) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Iconsax.message_question,
+                  size: 18, color: Colors.teal.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  screen.explanation,
+                  style: TextStyle(
+                      fontStyle: FontStyle.italic, color: Colors.grey.shade700),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          Text(
+            'فایل‌های مرتبط (${screen.relatedFiles.length + 1}):',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          _buildFileListItem(screen.screenName, isScreen: true),
+          ...screen.relatedFiles.map((file) => _buildFileListItem(file)),
         ],
       ),
     );
   }
 
+  /// ویجت کمکی برای نمایش هر فایل در لیست
   Widget _buildFileListItem(String filePath, {bool isScreen = false}) {
     return Padding(
       padding: const EdgeInsets.only(left: 8.0, top: 4, bottom: 4),
