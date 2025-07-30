@@ -1,11 +1,15 @@
+import 'package:get/get.dart';
+
 /// یک مدل داده سفارشی برای نمایش یک گره در درختواره فایل ما.
-/// این کلاس جایگزین کلاس Node از پکیج حذف شده می‌شود.
 class TreeNode {
   final String key; // مسیر کامل یا یک شناسه منحصر به فرد
   final String label; // نام فایل یا پوشه برای نمایش
   final String path; // مسیر کامل فایل (برای فایل‌ها)
   final List<TreeNode> children;
-  bool isExpanded;
+
+  // <<< اصلاح کلیدی: تبدیل وضعیت باز/بسته بودن به یک متغیر واکنشی >>>
+  final RxBool isExpanded;
+
   final bool isFile;
 
   TreeNode({
@@ -13,7 +17,7 @@ class TreeNode {
     required this.label,
     required this.path,
     this.children = const [],
-    this.isExpanded = false,
+    bool initialExpansionState = false, // مقدار اولیه
     this.isFile = false,
-  });
+  }) : isExpanded = initialExpansionState.obs; // مقداردهی اولیه RxBool
 }

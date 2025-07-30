@@ -25,17 +25,17 @@ class ContextEditorController extends GetxController {
   // User Inputs
   late final TextEditingController focusController;
   late final TextEditingController goalController;
-  // <<< جدید: کنترلر برای ورودی چت >>>
   late final TextEditingController chatInputController;
 
   // TreeView
   final RxList<TreeNode> treeNodes = <TreeNode>[].obs;
 
   // File Lists
+  // <<< اصلاح کلیدی: افزودن مجدد تعریف متغیر فراموش شده >>>
   final RxList<String> aiSuggestedFiles = <String>[].obs;
   final RxList<String> userFinalSelection = <String>[].obs;
 
-  // <<< جدید: تاریخچه چت >>>
+  // Chat History
   final RxList<ChatMessage> chatHistory = <ChatMessage>[].obs;
 
   @override
@@ -51,7 +51,7 @@ class ContextEditorController extends GetxController {
     chatInputController = TextEditingController();
 
     _buildFileTree();
-    // افزودن پیام خوش‌آمدگویی اولیه از طرف AI
+
     chatHistory.add(ChatMessage(
       text:
           'سلام! برای شروع، حوزه تمرکز یا درخواست خود را در کادر پایین وارد کنید تا فایل‌های مرتبط را برایتان پیدا کنم.',
@@ -74,7 +74,6 @@ class ContextEditorController extends GetxController {
   }
 
   void _buildFileTree() {
-    // این متد بدون تغییر باقی می‌ماند
     final List<String> paths = directoryTree
         .split('\n')
         .where((line) =>
@@ -119,7 +118,6 @@ class ContextEditorController extends GetxController {
     treeNodes.value = rootNodes;
   }
 
-  /// <<< اصلاح شده: این متد اکنون از تاریخچه چت استفاده کرده و پاسخ AI را نیز به آن اضافه می‌کند >>>
   Future<void> findFilesWithAi({required String userPrompt}) async {
     if (userPrompt.trim().isEmpty) {
       Get.snackbar('خطا', 'لطفاً درخواست خود را وارد کنید.');
@@ -130,7 +128,6 @@ class ContextEditorController extends GetxController {
     statusMessage.value =
         'هوش مصنوعی در حال تحلیل درخواست شما و وابستگی‌های پروژه است...';
 
-    // افزودن پیام کاربر به تاریخچه
     final userMessage = ChatMessage(
         text: userPrompt,
         sender: MessageSender.user,
@@ -149,9 +146,8 @@ class ContextEditorController extends GetxController {
         chatHistory: chatHistory,
       );
 
-      // افزودن پاسخ AI به تاریخچه
       final aiMessage = ChatMessage(
-        text: aiResponse.rationale, // متن پیام AI، تحلیل اوست
+        text: aiResponse.rationale,
         sender: MessageSender.ai,
         timestamp: DateTime.now(),
         rationale: aiResponse.rationale,
@@ -168,7 +164,6 @@ class ContextEditorController extends GetxController {
 
       statusMessage.value =
           '${aiResponse.relevantFiles.length} فایل مرتبط پیدا شد. تحلیل AI را در چت ببینید.';
-      treeNodes.refresh();
     } catch (e) {
       statusMessage.value = 'خطا در تحلیل AI.';
       final errorMessage = ChatMessage(
@@ -183,16 +178,13 @@ class ContextEditorController extends GetxController {
     }
   }
 
-  /// <<< جدید: متد برای ارسال پیام از طریق رابط کاربری چت >>>
   void sendChatMessage() {
     final prompt = chatInputController.text;
     findFilesWithAi(userPrompt: prompt);
-    // همگام‌سازی کادر تمرکز اصلی با آخرین درخواست چت
     focusController.text = prompt;
     chatInputController.clear();
   }
 
-  /// <<< جدید: متد برای ارسال پیام از طریق دکمه اصلی پنل چپ >>>
   void findFilesFromPanel() {
     final prompt = focusController.text;
     findFilesWithAi(userPrompt: prompt);
@@ -202,7 +194,7 @@ class ContextEditorController extends GetxController {
     for (var node in nodes) {
       bool hasSelectedChild = _nodeContainsSelection(node, selection);
       if (hasSelectedChild) {
-        node.isExpanded = true;
+        node.isExpanded.value = true;
         _expandToSelection(node.children, selection);
       }
     }
@@ -229,9 +221,8 @@ class ContextEditorController extends GetxController {
         userFinalSelection.add(node.path);
       }
     } else {
-      node.isExpanded = !node.isExpanded;
+      node.isExpanded.toggle();
     }
-    treeNodes.refresh();
   }
 
   Future<void> generateFinalCode() async {

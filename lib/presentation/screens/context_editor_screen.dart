@@ -6,7 +6,7 @@ import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/context_editor_controller.dart';
 
-// <<< ویجت جدید برای نمایش حباب پیام در چت >>>
+// ویجت برای نمایش حباب پیام در چت
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   const ChatBubble({super.key, required this.message});
@@ -62,89 +62,87 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
-class FileTreeView extends StatelessWidget {
-  final List<TreeNode> nodes;
+// <<< اصلاح کلیدی: این ویجت اکنون فقط مسئول نمایش یک گره است >>>
+class _TreeNodeWidget extends StatelessWidget {
+  final TreeNode node;
   final ContextEditorController controller;
+  final int depth;
 
-  const FileTreeView(
-      {super.key, required this.nodes, required this.controller});
+  const _TreeNodeWidget({
+    required this.node,
+    required this.controller,
+    required this.depth,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (nodes.isEmpty) {
-      return const Center(child: Text("ساختار درختی برای نمایش وجود ندارد."));
-    }
-    return ListView.builder(
-      itemCount: nodes.length,
-      itemBuilder: (context, index) {
-        return _buildNode(nodes[index], context, 0);
-      },
-    );
-  }
-
-  Widget _buildNode(TreeNode node, BuildContext context, int depth) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isSelected = controller.userFinalSelection.contains(node.path);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () => controller.onNodeToggled(node),
-          child: Container(
-            padding: EdgeInsets.only(left: (20.0 * depth), right: 8),
-            height: 40,
-            child: Row(
-              children: [
-                if (node.isFile)
-                  Checkbox(
-                    value: isSelected,
-                    onChanged: (val) => controller.onNodeToggled(node),
-                    activeColor: colorScheme.primary,
-                    visualDensity: VisualDensity.compact,
-                  )
-                else
+    return Obx(() {
+      final isSelected = controller.userFinalSelection.contains(node.path);
+      final isExpanded = node.isExpanded.value;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => controller.onNodeToggled(node),
+            child: Container(
+              padding: EdgeInsets.only(left: (20.0 * depth), right: 8),
+              height: 40,
+              child: Row(
+                children: [
+                  if (node.isFile)
+                    Checkbox(
+                      value: isSelected,
+                      onChanged: (val) => controller.onNodeToggled(node),
+                      activeColor: colorScheme.primary,
+                      visualDensity: VisualDensity.compact,
+                    )
+                  else
+                    Icon(
+                      isExpanded ? Iconsax.arrow_down_2 : Iconsax.arrow_right_3,
+                      size: 16,
+                    ),
+                  const SizedBox(width: 8),
                   Icon(
-                    node.isExpanded
-                        ? Iconsax.arrow_down_2
-                        : Iconsax.arrow_right_3,
-                    size: 16,
+                    node.isFile ? Iconsax.document_1 : Iconsax.folder,
+                    size: 20,
+                    color: node.isFile
+                        ? colorScheme.secondary
+                        : Colors.orange.shade400,
                   ),
-                const SizedBox(width: 8),
-                Icon(
-                  node.isFile ? Iconsax.document_1 : Iconsax.folder,
-                  size: 20,
-                  color: node.isFile
-                      ? colorScheme.secondary
-                      : Colors.orange.shade400,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    node.label,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      node.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        if (node.isExpanded && node.children.isNotEmpty)
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: node.children.length,
-            itemBuilder: (context, index) {
-              return _buildNode(node.children[index], context, depth + 1);
-            },
-          ),
-      ],
-    );
+          if (isExpanded && node.children.isNotEmpty)
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: node.children.length,
+              itemBuilder: (context, index) {
+                return _TreeNodeWidget(
+                    node: node.children[index],
+                    controller: controller,
+                    depth: depth + 1);
+              },
+            ),
+        ],
+      );
+    });
   }
 }
 
@@ -168,7 +166,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
           const VerticalDivider(width: 1),
           _buildTreeViewPanel(context),
           const VerticalDivider(width: 1),
-          // <<< جدید: پنل چت >>>
           _buildChatPanel(context),
         ],
       ),
@@ -177,7 +174,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
 
   Widget _buildControlPanel(BuildContext context) {
     return SizedBox(
-      width: 350, // عرض ثابت برای پنل کنترل
+      width: 350,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -230,45 +227,53 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
+  // <<< اصلاح ساختاری نهایی: منطق نمایش درخت به اینجا منتقل شد >>>
   Widget _buildTreeViewPanel(BuildContext context) {
     return Expanded(
-      flex: 5, // فضای بیشتر برای درخت فایل
+      flex: 5,
       child: Container(
         color: Theme.of(context).scaffoldBackgroundColor.withAlpha(200),
         child: Obx(() {
-          return FileTreeView(
-            nodes: controller.treeNodes,
-            controller: controller,
+          // این Obx به تغییرات لیست کلی گره‌ها گوش می‌دهد
+          if (controller.treeNodes.isEmpty) {
+            return const Center(
+                child: Text("ساختار درختی برای نمایش وجود ندارد."));
+          }
+          return ListView.builder(
+            itemCount: controller.treeNodes.length,
+            itemBuilder: (context, index) {
+              return _TreeNodeWidget(
+                node: controller.treeNodes[index],
+                controller: controller,
+                depth: 0,
+              );
+            },
           );
         }),
       ),
     );
   }
 
-  // <<< جدید: متد برای ساخت پنل چت >>>
   Widget _buildChatPanel(BuildContext context) {
     final theme = Theme.of(context);
     return Expanded(
-      flex: 6, // فضای بیشتر برای چت
+      flex: 6,
       child: Container(
         color: theme.colorScheme.surface.withOpacity(0.5),
         child: Column(
           children: [
-            // تاریخچه چت
             Expanded(
               child: Obx(() => ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    reverse: true, // برای نمایش پیام‌های جدید در پایین
+                    reverse: true,
                     itemCount: controller.chatHistory.length,
                     itemBuilder: (context, index) {
-                      // نمایش از آخر به اول
-                      final message = controller.chatHistory[
-                          controller.chatHistory.length - 1 - index];
+                      final message =
+                          controller.chatHistory.reversed.toList()[index];
                       return ChatBubble(message: message);
                     },
                   )),
             ),
-            // کادر ورودی چت
             Container(
               padding: const EdgeInsets.all(8.0),
               decoration: BoxDecoration(
