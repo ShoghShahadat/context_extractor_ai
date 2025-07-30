@@ -63,7 +63,6 @@ class FileService {
       final relativePath = p.relative(file.path, from: basePath);
       buffer.writeln('فایل شماره:${i + 1}');
       buffer.writeln('/------------------------------------');
-      // <<< اصلاح کلیدی: حذف فاصله اضافی بعد از دو نقطه >>>
       buffer.writeln('مسیر فایل:$relativePath');
       buffer.writeln('محتوای فایل:');
       try {
@@ -132,5 +131,53 @@ class FileService {
       debugPrint("Error extracting file content for $filePath: $e");
       return '// خطای استثنا در استخراج محتوای فایل "$filePath".';
     }
+  }
+
+  /// <<< اصلاح شده: منطق تجزیه محتوای کلی پروژه >>>
+  Map<String, String> parseProjectContent(String fullProjectContent) {
+    final Map<String, String> filesMap = {};
+    const separator = '/------------------------------------';
+    final parts = fullProjectContent.split(separator);
+
+    for (int i = 1; i < parts.length; i++) {
+      // <<< اصلاح کلیدی: حذف فضاهای خالی از ابتدا و انتهای بلوک >>>
+      final block = parts[i].trim();
+      if (block.isEmpty) continue;
+
+      try {
+        final pathLineEnd = block.indexOf('\n');
+        if (pathLineEnd == -1) continue; // اگر بلوک فقط یک خطی بود، رد شو
+
+        final pathLine = block.substring(0, pathLineEnd).trim();
+        final filePath = pathLine.replaceFirst('مسیر فایل:', '').trim();
+
+        const contentMarker = 'محتوای فایل:';
+        final contentStartIndex = block.indexOf(contentMarker);
+        if (contentStartIndex != -1) {
+          final content = block
+              .substring(contentStartIndex + contentMarker.length)
+              .split('------------------------------------/')[0]
+              .trim();
+
+          // فقط در صورتی اضافه کن که مسیر فایل خالی نباشد
+          if (filePath.isNotEmpty) {
+            filesMap[filePath] = content;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error parsing file block: $e');
+      }
+    }
+    return filesMap;
+  }
+
+  /// متدی برای استخراج تمام خطوط import, export, part از محتوای یک فایل
+  String extractImports(String fileContent) {
+    var importRegex = RegExp(r"^(import|export|part)\s+.*?;", multiLine: true);
+    final matches = importRegex.allMatches(fileContent);
+    if (matches.isEmpty) {
+      return '';
+    }
+    return matches.map((m) => m.group(0)!).join('\n');
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../core/models/chat_message.dart';
 import '../../core/models/tree_node.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/gemini_service.dart';
@@ -24,6 +25,8 @@ class ContextEditorController extends GetxController {
   // User Inputs
   late final TextEditingController focusController;
   late final TextEditingController goalController;
+  // <<< جدید: کنترلر برای ورودی چت >>>
+  late final TextEditingController chatInputController;
 
   // TreeView
   final RxList<TreeNode> treeNodes = <TreeNode>[].obs;
@@ -31,6 +34,9 @@ class ContextEditorController extends GetxController {
   // File Lists
   final RxList<String> aiSuggestedFiles = <String>[].obs;
   final RxList<String> userFinalSelection = <String>[].obs;
+
+  // <<< جدید: تاریخچه چت >>>
+  final RxList<ChatMessage> chatHistory = <ChatMessage>[].obs;
 
   @override
   void onInit() {
@@ -42,26 +48,33 @@ class ContextEditorController extends GetxController {
 
     focusController = TextEditingController();
     goalController = TextEditingController();
+    chatInputController = TextEditingController();
 
     _buildFileTree();
+    // افزودن پیام خوش‌آمدگویی اولیه از طرف AI
+    chatHistory.add(ChatMessage(
+      text:
+          'سلام! برای شروع، حوزه تمرکز یا درخواست خود را در کادر پایین وارد کنید تا فایل‌های مرتبط را برایتان پیدا کنم.',
+      sender: MessageSender.ai,
+      timestamp: DateTime.now(),
+    ));
   }
 
   @override
   void onClose() {
     focusController.dispose();
     goalController.dispose();
+    chatInputController.dispose();
     super.onClose();
   }
 
-  /// <<< اصلاح قطعی: بازنویسی کامل متد برای نرمال‌سازی هوشمند مسیرها >>>
   String _normalizePath(String path) {
-    // 1. تمام بک‌اسلش‌ها را به اسلش رو به جلو تبدیل می‌کند.
     String withForwardSlashes = path.replaceAll('\\', '/');
-    // 2. هرگونه تکرار اسلش (دو یا بیشتر) را به یک اسلش واحد کاهش می‌دهد.
     return withForwardSlashes.replaceAll(RegExp(r'/+'), '/');
   }
 
   void _buildFileTree() {
+    // این متد بدون تغییر باقی می‌ماند
     final List<String> paths = directoryTree
         .split('\n')
         .where((line) =>
@@ -106,29 +119,47 @@ class ContextEditorController extends GetxController {
     treeNodes.value = rootNodes;
   }
 
-  Future<void> findFilesWithAi() async {
-    if (focusController.text.trim().isEmpty) {
-      Get.snackbar('خطا', 'لطفاً حوزه تمرکز خود را مشخص کنید.');
+  /// <<< اصلاح شده: این متد اکنون از تاریخچه چت استفاده کرده و پاسخ AI را نیز به آن اضافه می‌کند >>>
+  Future<void> findFilesWithAi({required String userPrompt}) async {
+    if (userPrompt.trim().isEmpty) {
+      Get.snackbar('خطا', 'لطفاً درخواست خود را وارد کنید.');
       return;
     }
 
     isAiFindingFiles.value = true;
-    statusMessage.value = 'هوش مصنوعی در حال تحلیل عمیق کل پروژه شماست...';
+    statusMessage.value =
+        'هوش مصنوعی در حال تحلیل درخواست شما و وابستگی‌های پروژه است...';
+
+    // افزودن پیام کاربر به تاریخچه
+    final userMessage = ChatMessage(
+        text: userPrompt,
+        sender: MessageSender.user,
+        timestamp: DateTime.now());
+    chatHistory.add(userMessage);
 
     try {
-      final relevantFiles = await _geminiService.findRelevantFiles(
-        fullProjectContent: fullProjectContent,
-        userFocus: focusController.text.trim(),
+      final allFilesMap = _fileService.parseProjectContent(fullProjectContent);
+      final projectImports = allFilesMap.map(
+        (path, content) => MapEntry(path, _fileService.extractImports(content)),
       );
 
-      final normalizedRelevantFiles =
-          relevantFiles.map(_normalizePath).toList();
+      final aiResponse = await _geminiService.findRelevantFiles(
+        projectImports: projectImports,
+        userFocus: userPrompt,
+        chatHistory: chatHistory,
+      );
 
-      debugPrint("--- AI SUGGESTED FILES (NORMALIZED) ---");
-      for (final file in normalizedRelevantFiles) {
-        debugPrint("AI_PATH: '$file'");
-      }
-      debugPrint("------------------------------------");
+      // افزودن پاسخ AI به تاریخچه
+      final aiMessage = ChatMessage(
+        text: aiResponse.rationale, // متن پیام AI، تحلیل اوست
+        sender: MessageSender.ai,
+        timestamp: DateTime.now(),
+        rationale: aiResponse.rationale,
+      );
+      chatHistory.add(aiMessage);
+
+      final normalizedRelevantFiles =
+          aiResponse.relevantFiles.map(_normalizePath).toList();
 
       aiSuggestedFiles.assignAll(normalizedRelevantFiles);
       userFinalSelection.assignAll(normalizedRelevantFiles);
@@ -136,15 +167,35 @@ class ContextEditorController extends GetxController {
       _expandToSelection(treeNodes, userFinalSelection);
 
       statusMessage.value =
-          '${relevantFiles.length} فایل مرتبط توسط AI پیدا شد. لطفاً بازبینی کنید.';
+          '${aiResponse.relevantFiles.length} فایل مرتبط پیدا شد. تحلیل AI را در چت ببینید.';
       treeNodes.refresh();
     } catch (e) {
       statusMessage.value = 'خطا در تحلیل AI.';
+      final errorMessage = ChatMessage(
+          text: 'متاسفانه در پردازش درخواست شما خطایی رخ داد: $e',
+          sender: MessageSender.ai,
+          timestamp: DateTime.now());
+      chatHistory.add(errorMessage);
       debugPrint('An error occurred in findFilesWithAi: $e');
       Get.snackbar('خطای تحلیل', e.toString());
     } finally {
       isAiFindingFiles.value = false;
     }
+  }
+
+  /// <<< جدید: متد برای ارسال پیام از طریق رابط کاربری چت >>>
+  void sendChatMessage() {
+    final prompt = chatInputController.text;
+    findFilesWithAi(userPrompt: prompt);
+    // همگام‌سازی کادر تمرکز اصلی با آخرین درخواست چت
+    focusController.text = prompt;
+    chatInputController.clear();
+  }
+
+  /// <<< جدید: متد برای ارسال پیام از طریق دکمه اصلی پنل چپ >>>
+  void findFilesFromPanel() {
+    final prompt = focusController.text;
+    findFilesWithAi(userPrompt: prompt);
   }
 
   void _expandToSelection(List<TreeNode> nodes, List<String> selection) {
@@ -160,13 +211,8 @@ class ContextEditorController extends GetxController {
   bool _nodeContainsSelection(TreeNode node, List<String> selection) {
     if (node.isFile) {
       final isSelected = selection.contains(node.path);
-      if (isSelected) {
-        debugPrint(
-            "MATCH FOUND: Tree path '${node.path}' is in the AI selection.");
-      }
       return isSelected;
     }
-
     for (var child in node.children) {
       if (_nodeContainsSelection(child, selection)) {
         return true;

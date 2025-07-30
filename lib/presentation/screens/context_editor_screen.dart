@@ -1,9 +1,66 @@
+import 'package:context_extractor_ai/core/models/chat_message.dart';
 import 'package:context_extractor_ai/core/models/tree_node.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/context_editor_controller.dart';
+
+// <<< ویجت جدید برای نمایش حباب پیام در چت >>>
+class ChatBubble extends StatelessWidget {
+  final ChatMessage message;
+  const ChatBubble({super.key, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isUser = message.sender == MessageSender.user;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isUser)
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.primary,
+              child: const Icon(Iconsax.cpu, color: Colors.white, size: 20),
+            ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? theme.colorScheme.primary.withOpacity(0.8)
+                    : theme.colorScheme.surfaceVariant,
+                borderRadius: BorderRadius.circular(16).copyWith(
+                  bottomLeft: isUser ? const Radius.circular(16) : Radius.zero,
+                  bottomRight: isUser ? Radius.zero : const Radius.circular(16),
+                ),
+              ),
+              child: Text(
+                message.text,
+                style: TextStyle(
+                  color: isUser
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          if (isUser) const SizedBox(width: 8),
+          if (isUser)
+            CircleAvatar(
+              backgroundColor: theme.colorScheme.secondary,
+              child: const Icon(Iconsax.user, color: Colors.white, size: 20),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class FileTreeView extends StatelessWidget {
   final List<TreeNode> nodes;
@@ -14,18 +71,21 @@ class FileTreeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (nodes.isEmpty) {
+      return const Center(child: Text("ساختار درختی برای نمایش وجود ندارد."));
+    }
     return ListView.builder(
       itemCount: nodes.length,
       itemBuilder: (context, index) {
-        return _buildNode(nodes[index], context);
+        return _buildNode(nodes[index], context, 0);
       },
     );
   }
 
-  Widget _buildNode(TreeNode node, BuildContext context) {
-    // <<< اصلاح: استفاده از رنگ‌های تم >>>
+  Widget _buildNode(TreeNode node, BuildContext context, int depth) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isSelected = controller.userFinalSelection.contains(node.path);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,14 +93,16 @@ class FileTreeView extends StatelessWidget {
         InkWell(
           onTap: () => controller.onNodeToggled(node),
           child: Container(
-            padding: EdgeInsets.only(left: (20.0 * _getDepth(node))),
+            padding: EdgeInsets.only(left: (20.0 * depth), right: 8),
+            height: 40,
             child: Row(
               children: [
                 if (node.isFile)
                   Checkbox(
-                    value: controller.userFinalSelection.contains(node.path),
+                    value: isSelected,
                     onChanged: (val) => controller.onNodeToggled(node),
                     activeColor: colorScheme.primary,
+                    visualDensity: VisualDensity.compact,
                   )
                 else
                   Icon(
@@ -51,7 +113,7 @@ class FileTreeView extends StatelessWidget {
                   ),
                 const SizedBox(width: 8),
                 Icon(
-                  node.isFile ? Iconsax.document : Iconsax.folder,
+                  node.isFile ? Iconsax.document_1 : Iconsax.folder,
                   size: 20,
                   color: node.isFile
                       ? colorScheme.secondary
@@ -61,11 +123,10 @@ class FileTreeView extends StatelessWidget {
                 Expanded(
                   child: Text(
                     node.label,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontWeight:
-                          controller.userFinalSelection.contains(node.path)
-                              ? FontWeight.bold
-                              : FontWeight.normal,
+                          isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -74,26 +135,16 @@ class FileTreeView extends StatelessWidget {
           ),
         ),
         if (node.isExpanded && node.children.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 20.0),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: node.children.length,
-              itemBuilder: (context, index) {
-                return _buildNode(node.children[index], context);
-              },
-            ),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: node.children.length,
+            itemBuilder: (context, index) {
+              return _buildNode(node.children[index], context, depth + 1);
+            },
           ),
       ],
     );
-  }
-
-  int _getDepth(TreeNode node) {
-    int depth = 0;
-    final parts = node.key.split(RegExp(r'[/\\]'));
-    depth = parts.length - 1;
-    return depth;
   }
 }
 
@@ -116,14 +167,17 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
           _buildControlPanel(context),
           const VerticalDivider(width: 1),
           _buildTreeViewPanel(context),
+          const VerticalDivider(width: 1),
+          // <<< جدید: پنل چت >>>
+          _buildChatPanel(context),
         ],
       ),
     );
   }
 
   Widget _buildControlPanel(BuildContext context) {
-    return Expanded(
-      flex: 2,
+    return SizedBox(
+      width: 350, // عرض ثابت برای پنل کنترل
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -133,7 +187,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              'به هوش مصنوعی بگویید روی کدام بخش یا قابلیت پروژه تمرکز کند.',
+              'به هوش مصنوعی بگویید روی کدام بخش تمرکز کند. می‌توانید از پنل چت هم استفاده کنید.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
@@ -146,7 +200,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: controller.findFilesWithAi,
+              onPressed: controller.findFilesFromPanel,
               icon: const Icon(Iconsax.magicpen),
               label: const Text('یافتن فایل‌های مرتبط با AI'),
             ),
@@ -178,20 +232,97 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
 
   Widget _buildTreeViewPanel(BuildContext context) {
     return Expanded(
-      flex: 3,
+      flex: 5, // فضای بیشتر برای درخت فایل
       child: Container(
-        // <<< اصلاح: استفاده از رنگ پس‌زمینه تم >>>
         color: Theme.of(context).scaffoldBackgroundColor.withAlpha(200),
         child: Obx(() {
-          if (controller.treeNodes.isEmpty) {
-            return const Center(
-                child: Text('ساختار پروژه برای نمایش وجود ندارد.'));
-          }
           return FileTreeView(
             nodes: controller.treeNodes,
             controller: controller,
           );
         }),
+      ),
+    );
+  }
+
+  // <<< جدید: متد برای ساخت پنل چت >>>
+  Widget _buildChatPanel(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      flex: 6, // فضای بیشتر برای چت
+      child: Container(
+        color: theme.colorScheme.surface.withOpacity(0.5),
+        child: Column(
+          children: [
+            // تاریخچه چت
+            Expanded(
+              child: Obx(() => ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    reverse: true, // برای نمایش پیام‌های جدید در پایین
+                    itemCount: controller.chatHistory.length,
+                    itemBuilder: (context, index) {
+                      // نمایش از آخر به اول
+                      final message = controller.chatHistory[
+                          controller.chatHistory.length - 1 - index];
+                      return ChatBubble(message: message);
+                    },
+                  )),
+            ),
+            // کادر ورودی چت
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 10,
+                    color: Colors.black.withOpacity(0.1),
+                    offset: const Offset(0, -2),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller.chatInputController,
+                      onSubmitted: (_) => controller.sendChatMessage(),
+                      decoration: InputDecoration(
+                        hintText: 'درخواست جدیدی دارید؟',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceVariant,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Obx(
+                    () => controller.isAiFindingFiles.value
+                        ? const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: SpinKitFadingCircle(
+                                color: Colors.teal, size: 24),
+                          )
+                        : IconButton.filled(
+                            style: IconButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              fixedSize: const Size(48, 48),
+                            ),
+                            onPressed: controller.sendChatMessage,
+                            icon:
+                                const Icon(Iconsax.send_1, color: Colors.white),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -204,7 +335,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          // <<< اصلاح: استفاده از رنگ‌های تم >>>
           color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
           borderRadius: BorderRadius.circular(8),
         ),

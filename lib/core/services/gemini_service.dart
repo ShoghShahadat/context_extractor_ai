@@ -1,6 +1,23 @@
+import 'package:context_extractor_ai/core/models/chat_message.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
+
+// <<< جدید: یک کلاس برای نگهداری پاسخ ساختاریافته از AI >>>
+class AiFileSelectionResponse {
+  final List<String> relevantFiles;
+  final String rationale;
+
+  AiFileSelectionResponse(
+      {required this.relevantFiles, required this.rationale});
+
+  factory AiFileSelectionResponse.fromJson(Map<String, dynamic> json) {
+    return AiFileSelectionResponse(
+      relevantFiles: List<String>.from(json['relevant_files'] ?? []),
+      rationale: json['rationale'] as String? ?? 'تحلیلی ارائه نشد.',
+    );
+  }
+}
 
 class GeminiService {
   final List<String> _apiKeys = [
@@ -39,7 +56,7 @@ class GeminiService {
       apiKey: currentKey,
       generationConfig: GenerationConfig(
         responseMimeType: "application/json",
-        temperature: 0.1,
+        temperature: 0.2, // کمی افزایش دما برای خلاقیت در تحلیل
       ),
     );
   }
@@ -69,6 +86,10 @@ class GeminiService {
       throw Exception("هیچ کلید API برای استفاده وجود ندارد.");
     }
 
+    debugPrint("===================== PROMPT SENT TO AI =====================");
+    debugPrint(prompt);
+    debugPrint("=============================================================");
+
     for (int i = 0; i < _apiKeys.length; i++) {
       final keyToTryIndex = _currentKeyIndex;
       try {
@@ -84,17 +105,22 @@ class GeminiService {
         }
 
         debugPrint(
+            "==================== RAW RESPONSE FROM AI ====================");
+        debugPrint(response.text!);
+        debugPrint(
+            "==============================================================");
+
+        debugPrint(
             "✅ Request successful with API key at index: $keyToTryIndex");
         return response.text!;
       } on GenerativeAIException catch (e) {
-        // <<< اصلاح کلیدی: افزودن خطای 503 (سرور مشغول) به لیست خطاهای قابل تکرار >>>
         if (e.message.contains('API key not valid') ||
             e.message.contains('quota') ||
             e.message.contains('503')) {
           debugPrint(
               "❌ API key at index $keyToTryIndex failed (Retriable Error): ${e.message}");
-          _moveToNextKey(); // رفتن به کلید بعدی
-          continue; // ادامه حلقه برای تلاش مجدد
+          _moveToNextKey();
+          continue;
         } else {
           debugPrint("A non-retriable error occurred: ${e.message}");
           throw Exception("خطای غیرقابل تکرار از سرویس AI: ${e.message}");
@@ -108,24 +134,27 @@ class GeminiService {
     throw Exception("تمام کلیدهای API به دلیل محدودیت یا خطا ناموفق بودند.");
   }
 
-  Future<List<String>> findRelevantFiles({
-    required String fullProjectContent,
+  /// <<< اصلاح شده: این متد اکنون یک آبجکت کامل پاسخ را برمی‌گرداند >>>
+  Future<AiFileSelectionResponse> findRelevantFiles({
+    required Map<String, String> projectImports,
     required String userFocus,
+    required List<ChatMessage>
+        chatHistory, // <<< جدید: تاریخچه چت برای زمینه بهتر
   }) async {
-    final prompt =
-        _buildFullSourceFileFinderPrompt(fullProjectContent, userFocus);
+    final prompt = _buildImportBasedFileFinderPrompt(
+        projectImports, userFocus, chatHistory);
     final responseText = await _generateWithRetry(prompt, forJson: true);
 
-    final sanitizedJsonString = responseText.replaceAll(r'\', r'\\');
-    final decodedJson = json.decode(sanitizedJsonString);
+    final cleanJsonString =
+        responseText.replaceAll(RegExp(r'```(json)?'), '').trim();
 
-    if (decodedJson is Map<String, dynamic> &&
-        decodedJson.containsKey('relevant_files') &&
-        decodedJson['relevant_files'] is List) {
-      return List<String>.from(decodedJson['relevant_files']);
-    } else {
-      throw Exception(
-          "پاسخ هوش مصنوعی ساختار مورد انتظار (لیست فایل‌ها) را نداشت.");
+    try {
+      final decodedJson = json.decode(cleanJsonString);
+      return AiFileSelectionResponse.fromJson(decodedJson);
+    } catch (e) {
+      debugPrint("JSON Decode Error: $e");
+      debugPrint("Received String for decoding: $cleanJsonString");
+      throw Exception("خطا در تجزیه پاسخ JSON از هوش مصنوعی.");
     }
   }
 
@@ -136,7 +165,8 @@ class GeminiService {
     required List<String> aiSuggestedFiles,
     required List<String> finalSelectedFiles,
     required String fullProjectContent,
-  }) async {
+  }) {
+    // این متد فعلا بدون تغییر باقی می‌ماند
     final prompt = _buildHeaderPromptV2(
       directoryTree: directoryTree,
       userGoal: userGoal,
@@ -148,48 +178,62 @@ class GeminiService {
     return _generateWithRetry(prompt, forJson: false);
   }
 
-  String _buildFullSourceFileFinderPrompt(
-      String fullProjectContent, String userFocus) {
-    return """
-    You are a world-class Senior Software Architect with exceptional code analysis capabilities. Your task is to act as an intelligent file finder for a developer.
-    The developer has provided you with the ENTIRE source code of their project, formatted as a series of file blocks, along with their current task description.
+  /// <<< اصلاح شده: پرامپت اکنون تاریخچه چت را دریافت می‌کند و درخواست تحلیل (rationale) دارد >>>
+  String _buildImportBasedFileFinderPrompt(Map<String, String> projectImports,
+      String userFocus, List<ChatMessage> chatHistory) {
+    final importsData = projectImports.entries.map((entry) {
+      if (entry.value.trim().isEmpty) {
+        return 'File: "${entry.key}"\n(No imports or exports)';
+      }
+      return 'File: "${entry.key}"\n---\n${entry.value}\n---';
+    }).join('\n\n');
 
-    Your mission is to identify ALL files that are TRULY relevant to the user's focus by performing a deep analysis of the actual code, not just file names.
+    final historyString = chatHistory.map((msg) {
+      return "${msg.sender.name}: ${msg.text}";
+    }).join('\n');
+
+    return """
+    You are a world-class Senior Software Architect specializing in dependency analysis. You are acting as an intelligent assistant for a developer.
+    The developer has provided you with a dependency map of their project. You also have the history of your conversation.
+
+    Your mission is twofold:
+    1.  **Analyze and Select:** Based on the user's latest request and the conversation history, identify ALL files relevant to the task by analyzing the dependency graph.
+    2.  **Explain Your Reasoning:** Provide a concise, professional, and insightful explanation (`rationale`) for your selection. Explain *why* you chose those specific files based on the user's goal and the project structure.
 
     **Analysis Rules:**
-    1.  **Deeply Understand the Goal:** Analyze the user's focus: "$userFocus". What is the core intent? What functionality needs to be added, changed, or fixed?
-    2.  **Analyze the Full Codebase:** Read and comprehend the provided source code in its entirety. Pay close attention to:
-        * `import` and `export` statements to trace dependencies.
-        * Class inheritance and implementations.
-        * Function calls and method invocations between files.
-        * State management logic (e.g., how GetX controllers, services, and UI are connected).
-        * Data models and their usage.
-        * Routing and navigation logic.
-    3.  **Identify the Chain of Relevance:** Based on your code analysis, find the complete chain of relevant files. Start from the most obvious files (like a screen) and trace all its dependencies—controllers, services, models, bindings, utility functions, etc.
-    4.  **Be Comprehensive and Accurate:** It is critical to include every file in the logical chain. It's better to include a file that might be slightly related than to miss a critical dependency. Your analysis must be based on the code's content, not just its path or name.
-    5.  **Output Format:** Your output MUST be a valid JSON object with a single key "relevant_files", which is an array of strings. Each string must be a full path from the project root as it appears in the `مسیر فایل:` markers. Do not include any other text, explanations, or markdown.
+    1.  **Context is Key:** Use the entire `Conversation History` to understand the user's evolving goal. The latest message is the primary focus, but the history provides context.
+    2.  **Dependency Analysis:** Use the `Project Dependency Map` to trace connections between files.
+    3.  **Naming Conventions:** Use file names as a strong hint (e.g., `form_controller.dart` is relevant to "forms").
+    4.  **Comprehensive Selection:** Include every file in the logical chain. It's better to be slightly over-inclusive than to miss a critical dependency.
+    5.  **Output Format:** Your output MUST be a valid JSON object with two keys:
+        * `"relevant_files"`: An array of strings, where each string is a full file path.
+        * `"rationale"`: A string containing your analysis and reasoning, written in clear Persian.
 
-    **User's Current Focus:** "$userFocus"
-
-    **Full Project Source Code:**
+    **Conversation History:**
     ```
-    $fullProjectContent
+    $historyString
+    ```
+    
+    **User's Latest Request:** "$userFocus"
+
+    **Project Dependency Map (File Path -> Imports/Exports):**
+    ```
+    $importsData
     ```
 
     **Example JSON Output:**
     ```json
     {
       "relevant_files": [
-        "lib/presentation/screens/profile_screen.dart",
-        "lib/presentation/controllers/profile_controller.dart",
-        "lib/core/models/user_profile.dart",
-        "lib/core/services/user_service.dart",
-        "lib/core/bindings/profile_binding.dart"
-      ]
+        "lib/presentation/screens/forms/user_form_screen.dart",
+        "lib/presentation/controllers/forms/user_form_controller.dart",
+        "lib/presentation/widgets/custom_text_field.dart"
+      ],
+      "rationale": "برای پیاده‌سازی فرم‌ها، فایل صفحه اصلی `user_form_screen.dart` به عنوان رابط کاربری، `user_form_controller.dart` برای مدیریت منطق و وضعیت، و `custom_text_field.dart` به عنوان ویجت ورودی مشترک، ضروری هستند. این سه فایل هسته اصلی این قابلیت را تشکیل می‌دهند."
     }
     ```
 
-    Now, perform a deep analysis of the provided source code and user focus, and generate the JSON output of all relevant file paths.
+    Now, perform a deep analysis and generate the JSON output.
     """;
   }
 
