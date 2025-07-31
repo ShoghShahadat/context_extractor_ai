@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:ui'; // <<< جدید: برای استفاده از ImageFilter
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/services/file_service.dart';
 import '../../core/services/history_service.dart';
 import '../routes/app_pages.dart';
+import '../theme/app_theme.dart'; // <<< جدید: ایمپورت تم
 
 class HomeController extends GetxController {
   final FileService _fileService = Get.find();
@@ -97,30 +99,40 @@ class HomeController extends GetxController {
     );
   }
 
+  // <<< اصلاح کامل: بازنویسی دیالوگ با سبک Glassmorphism >>>
   void _showProgressDialog(String title) {
     statusMessage.value = 'در حال خواندن و ساختاربندی فایل‌ها...';
     Get.dialog(
-      Dialog(
-        // <<< اصلاح: حذف رنگ پس‌زمینه ثابت برای هماهنگی با تم >>>
-        // backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 24),
-              const Text('در حال پردازش',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(title,
+      BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Dialog(
+          backgroundColor: Colors.transparent, // برای نمایش افکت شیشه
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            decoration: AppTheme.glassmorphism(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+                const SizedBox(height: 24),
+                const Text('در حال پردازش',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  title,
                   textAlign: TextAlign.center,
-                  style:
-                      TextStyle(color: Get.theme.textTheme.bodySmall?.color)),
-              const SizedBox(height: 16),
-              Obx(() => Text(statusMessage.value, textAlign: TextAlign.center)),
-            ],
+                  style: TextStyle(color: Colors.white.withOpacity(0.8)),
+                ),
+                const SizedBox(height: 16),
+                Obx(() => Text(statusMessage.value,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)))),
+              ],
+            ),
           ),
         ),
       ),
@@ -134,8 +146,14 @@ class HomeController extends GetxController {
     }
     Get.defaultDialog(
       title: title,
+      titleStyle: const TextStyle(
+          color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
       middleText: message,
+      middleTextStyle: TextStyle(color: Colors.white.withOpacity(0.9)),
+      backgroundColor: AppColors.secondary.withOpacity(0.85),
       textConfirm: 'متوجه شدم',
+      confirmTextColor: Colors.white,
+      buttonColor: AppColors.primary,
       onConfirm: () => Get.back(),
     );
   }
