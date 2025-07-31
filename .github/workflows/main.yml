@@ -261,7 +261,7 @@ jobs:
         run: flutter pub get
       - name: '🛠️ Build Web if final output cache missed'
         if: steps.cache-web-build.outputs.cache-hit != 'true'
-        run: flutter build web --release --base-href "/${{ env.PUBLIC_REPO_NAME }}/"
+        run: flutter build web --release --base-href "/${{ env.PUBLIC_REPO_NAME }}/"--no-tree-shake-icons
       - name: '⬆️ Upload Web Artifact'
         uses: actions/upload-artifact@v4
         with:
