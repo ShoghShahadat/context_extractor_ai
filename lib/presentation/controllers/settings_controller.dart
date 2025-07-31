@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <<< جدید: برای مدیریت خطاهای پلتفرم
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/settings_service.dart';
 
 class SettingsController extends GetxController {
@@ -70,5 +72,34 @@ class SettingsController extends GetxController {
 
   void removeExcludedDir(String dir) {
     excludedDirs.remove(dir);
+  }
+
+  // <<< اصلاح کلیدی: افزودن مدیریت خطا برای پایداری بیشتر >>>
+  Future<void> launchApiKeyUrl() async {
+    final Uri url = Uri.parse('https://aistudio.google.com/apikey');
+    try {
+      // تلاش برای باز کردن لینک در یک برنامه خارجی (مرورگر پیش‌فرض)
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw 'Could not launch $url';
+      }
+    } on PlatformException catch (e) {
+      // این بخش خطای MissingPluginException را مدیریت می‌کند
+      debugPrint("Failed to launch URL: ${e.message}");
+      Get.snackbar(
+        'خطای پلتفرم',
+        'امکان اجرای مرورگر وجود ندارد. لطفاً از نصب بودن برنامه و راه‌اندازی مجدد آن اطمینان حاصل کنید.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      // مدیریت سایر خطاها
+      debugPrint("An unexpected error occurred: $e");
+      Get.snackbar(
+        'خطا',
+        'یک خطای پیش‌بینی نشده در باز کردن لینک رخ داد.',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 }

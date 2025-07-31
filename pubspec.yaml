@@ -22,6 +22,8 @@ dependencies:
   iconsax: ^0.0.8
   google_fonts: ^6.2.1
   flutter_animate: ^4.5.0
+  flutter_html: ^3.0.0-beta.2 # <<< جدید: برای نمایش راهنمای HTML
+  url_launcher: ^6.3.0 # <<< جدید: برای باز کردن لینک
 
 
 dev_dependencies:
