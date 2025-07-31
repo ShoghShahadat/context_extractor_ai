@@ -1,131 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// کلاس برای تعریف رنگ‌های اصلی برنامه
+// فلسفه جدید: مینیمالیسم حرفه‌ای با تمرکز بر وضوح
 class AppColors {
-  static const Color primary = Color(0xFF00B2FF); // آبی درخشان
-  static const Color secondary = Color(0xFF1D2B64); // آبی تیره عمیق
-  static const Color accent = Color(0xFF36D1DC); // فیروزه‌ای
-  static const Color backgroundStart =
-      Color(0xFF1A2980); // شروع گرادیان پس‌زمینه
-  static const Color backgroundEnd =
-      Color(0xFF26D0CE); // پایان گرادیان پس‌زمینه
-  static const Color glassFill = Color(0xFFFFFFFF); // رنگ پایه شیشه
+  static const Color background = Color(0xFF121212); // پس‌زمینه اصلی تیره
+  static const Color sidebar = Color(0xFF1A1A1A); // پس‌زمینه نوار کناری
+  static const Color surface = Color(0xFF242424); // رنگ سطوح و کارت‌ها
+  static const Color primary =
+      Color(0xFF007AFF); // آبی درخشان به عنوان رنگ تأکیدی
+  static const Color onPrimary = Colors.white;
+
+  static const Color textPrimary = Color(0xFFEAEAEA); // رنگ متن اصلی
+  static const Color textSecondary = Color(0xFF9E9E9E); // رنگ متن ثانویه
+  static const Color border = Color(0xFF333333); // رنگ بوردرها
 }
 
-// کلاس برای تعریف گرادیان‌های برنامه
-class AppGradients {
-  static const LinearGradient background = LinearGradient(
-    colors: [AppColors.backgroundStart, AppColors.backgroundEnd],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient primaryButton = LinearGradient(
-    colors: [AppColors.primary, AppColors.accent],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-  );
-}
-
-// کلاس اصلی برای تعریف تم برنامه
 class AppTheme {
-  // دکوریشن استاندارد برای ایجاد افکت شیشه‌ای
-  static BoxDecoration glassmorphism(
-      {Color color = AppColors.glassFill,
-      double blur = 10.0,
-      double opacity = 0.1,
-      BorderRadius? borderRadius}) {
-    return BoxDecoration(
-      borderRadius: borderRadius ?? BorderRadius.circular(20),
-      color: color.withOpacity(opacity),
-      border: Border.all(
-        color: AppColors.glassFill.withOpacity(0.2),
-        width: 1.5,
-      ),
-    );
-  }
-
-  // متد اصلی برای دریافت تم تاریک و مدرن برنامه
   static ThemeData getTheme() {
     final baseTheme = ThemeData.dark();
-    final textTheme = GoogleFonts.vazirmatnTextTheme(baseTheme.textTheme);
+    final textTheme = GoogleFonts.vazirmatnTextTheme(baseTheme.textTheme).apply(
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+    );
 
     return baseTheme.copyWith(
       primaryColor: AppColors.primary,
-      scaffoldBackgroundColor: AppColors.secondary, // رنگ پس‌زمینه اصلی
+      scaffoldBackgroundColor: AppColors.background,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent, // شفاف برای نمایش گرادیان
+        backgroundColor: AppColors.background,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           textStyle:
               textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.glassFill.withOpacity(0.1),
+        color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: AppColors.glassFill.withOpacity(0.2),
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.border, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.glassFill.withOpacity(0.05),
-        hintStyle: textTheme.bodyMedium?.copyWith(color: Colors.white54),
+        fillColor: AppColors.surface,
+        hintStyle:
+            textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.secondary.withOpacity(0.8),
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: AppColors.glassFill.withOpacity(0.3),
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.border, width: 1),
         ),
       ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-      dividerColor: AppColors.glassFill.withOpacity(0.2),
+      dividerColor: AppColors.border,
       colorScheme: baseTheme.colorScheme.copyWith(
         primary: AppColors.primary,
-        secondary: AppColors.accent,
-        surface: AppColors.secondary,
-        onSurface: Colors.white,
-        background: AppColors.secondary,
+        onPrimary: AppColors.onPrimary,
+        surface: AppColors.surface,
+        onSurface: AppColors.textPrimary,
+        background: AppColors.background,
+        onBackground: AppColors.textPrimary,
       ),
     );
   }
