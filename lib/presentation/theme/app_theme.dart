@@ -1,18 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// فلسفه جدید: مینیمالیسم حرفه‌ای با تمرکز بر وضوح
+// فلسفه جدید: مینیمالیسم حرفه‌ای با گرادیان مدرن
 class AppColors {
   static const Color background = Color(0xFF121212); // پس‌زمینه اصلی تیره
   static const Color sidebar = Color(0xFF1A1A1A); // پس‌زمینه نوار کناری
   static const Color surface = Color(0xFF242424); // رنگ سطوح و کارت‌ها
-  static const Color primary =
-      Color(0xFF007AFF); // آبی درخشان به عنوان رنگ تأکیدی
+
+  // <<< اصلاح: تعریف دو رنگ برای گرادیان اصلی >>>
+  static const Color primaryStart = Color(0xFF007AFF); // آبی درخشان
+  static const Color primaryEnd = Color(0xFF00C6FF); // آبی آسمانی
+
   static const Color onPrimary = Colors.white;
 
   static const Color textPrimary = Color(0xFFEAEAEA); // رنگ متن اصلی
   static const Color textSecondary = Color(0xFF9E9E9E); // رنگ متن ثانویه
   static const Color border = Color(0xFF333333); // رنگ بوردرها
+}
+
+// <<< جدید: کلاس اختصاصی برای گرادیان‌ها >>>
+class AppGradients {
+  static const LinearGradient primary = LinearGradient(
+    colors: [AppColors.primaryStart, AppColors.primaryEnd],
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+  );
 }
 
 class AppTheme {
@@ -24,7 +36,8 @@ class AppTheme {
     );
 
     return baseTheme.copyWith(
-      primaryColor: AppColors.primary,
+      primaryColor:
+          AppColors.primaryStart, // استفاده از رنگ شروع به عنوان رنگ اصلی
       scaffoldBackgroundColor: AppColors.background,
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
@@ -37,10 +50,11 @@ class AppTheme {
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
+      // تم دکمه‌های عادی بدون تغییر باقی می‌ماند
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -72,7 +86,8 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide:
+              const BorderSide(color: AppColors.primaryStart, width: 1.5),
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -84,7 +99,7 @@ class AppTheme {
       ),
       dividerColor: AppColors.border,
       colorScheme: baseTheme.colorScheme.copyWith(
-        primary: AppColors.primary,
+        primary: AppColors.primaryStart,
         onPrimary: AppColors.onPrimary,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,

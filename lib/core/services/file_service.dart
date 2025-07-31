@@ -1,9 +1,14 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:path/path.dart' as p;
+import 'settings_service.dart'; // <<< جدید: ایمپورت سرویس تنظیمات
 
 /// سرویسی برای تحلیل و استخراج اطلاعات از فایل‌ها و پوشه‌های پروژه.
-class FileService {
+class FileService extends GetxService {
+  // <<< اصلاح: وابستگی به سرویس تنظیمات >>>
+  final SettingsService _settingsService = Get.find();
+
   // پسوندهای فایل‌های کدی که باید در خروجی گنجانده شوند
   static const _codeExtensions = {
     '.dart', '.yaml', '.json', '.md', '.txt', // General & Flutter
@@ -12,16 +17,11 @@ class FileService {
     '.c', '.cpp', '.h', '.cs', '.go', '.rs', '.php'
   };
 
-  // پوشه‌هایی که باید در پیمایش نادیده گرفته شوند
-  static const _excludedDirs = {
-    '.git', '.idea', 'build', 'dist', '.vscode',
-    '.dart_tool', 'linux', 'windows', 'macos', 'ios',
-    'android', // Flutter/Dart specific
-    '__pycache__', 'venv', 'node_modules'
-  };
-
   /// یک پوشه را پیمایش کرده و محتوای آن را به فرمت متنی استاندارد برنامه تبدیل می‌کند.
   Future<String> processDirectory(String directoryPath) async {
+    // <<< اصلاح: خواندن لیست پوشه‌های مستثنی از سرویس تنظیمات >>>
+    final excludedDirs = _settingsService.getExcludedDirs().toSet();
+
     final directory = Directory(directoryPath);
     if (!await directory.exists()) {
       throw Exception("پوشه انتخاب شده وجود ندارد: $directoryPath");
@@ -33,13 +33,13 @@ class FileService {
     await for (final entity
         in directory.list(recursive: true, followLinks: false)) {
       if (entity is Directory &&
-          _excludedDirs.contains(p.basename(entity.path))) {
+          excludedDirs.contains(p.basename(entity.path))) {
         continue;
       }
 
       if (entity is File) {
         if (_codeExtensions.contains(p.extension(entity.path))) {
-          if (!_isPathInExcludedDir(entity.path, basePath)) {
+          if (!_isPathInExcludedDir(entity.path, basePath, excludedDirs)) {
             codeFiles.add(entity);
           }
         }
@@ -77,12 +77,14 @@ class FileService {
     return buffer.toString();
   }
 
-  bool _isPathInExcludedDir(String path, String basePath) {
+  bool _isPathInExcludedDir(
+      String path, String basePath, Set<String> excludedDirs) {
     final relativePath = p.relative(path, from: basePath);
     final parts = p.split(relativePath);
-    return parts.any((part) => _excludedDirs.contains(part));
+    return parts.any((part) => excludedDirs.contains(part));
   }
 
+  // ... (متدهای extractDirectoryTree, extractFileContent, parseProjectContent, extractImports بدون تغییر) ...
   String extractDirectoryTree(String fileContent) {
     try {
       final startIndex = fileContent.indexOf('نمودار درختی دایرکتوری :');
@@ -133,20 +135,18 @@ class FileService {
     }
   }
 
-  /// <<< اصلاح شده: منطق تجزیه محتوای کلی پروژه >>>
   Map<String, String> parseProjectContent(String fullProjectContent) {
     final Map<String, String> filesMap = {};
     const separator = '/------------------------------------';
     final parts = fullProjectContent.split(separator);
 
     for (int i = 1; i < parts.length; i++) {
-      // <<< اصلاح کلیدی: حذف فضاهای خالی از ابتدا و انتهای بلوک >>>
       final block = parts[i].trim();
       if (block.isEmpty) continue;
 
       try {
         final pathLineEnd = block.indexOf('\n');
-        if (pathLineEnd == -1) continue; // اگر بلوک فقط یک خطی بود، رد شو
+        if (pathLineEnd == -1) continue;
 
         final pathLine = block.substring(0, pathLineEnd).trim();
         final filePath = pathLine.replaceFirst('مسیر فایل:', '').trim();
@@ -159,7 +159,6 @@ class FileService {
               .split('------------------------------------/')[0]
               .trim();
 
-          // فقط در صورتی اضافه کن که مسیر فایل خالی نباشد
           if (filePath.isNotEmpty) {
             filesMap[filePath] = content;
           }
@@ -171,7 +170,6 @@ class FileService {
     return filesMap;
   }
 
-  /// متدی برای استخراج تمام خطوط import, export, part از محتوای یک فایل
   String extractImports(String fileContent) {
     var importRegex = RegExp(r"^(import|export|part)\s+.*?;", multiLine: true);
     final matches = importRegex.allMatches(fileContent);

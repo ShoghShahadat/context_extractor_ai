@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/result_controller.dart';
 import '../theme/app_theme.dart';
+import '../widgets/gradient_button.dart'; // <<< جدید: ایمپورت ویجت دکمه گرادیانی
 
 class ResultScreen extends GetView<ResultController> {
   const ResultScreen({super.key});
@@ -45,6 +46,7 @@ class ResultScreen extends GetView<ResultController> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        // دکمه ذخیره با استایل عادی
         FloatingActionButton.extended(
           heroTag: 'save_button',
           onPressed: controller.saveToFile,
@@ -58,15 +60,13 @@ class ResultScreen extends GetView<ResultController> {
           ),
         ),
         const SizedBox(width: 16),
-        FloatingActionButton.extended(
-          heroTag: 'copy_button',
+        // <<< اصلاح: دکمه کپی با استایل گرادیانی >>>
+        GradientButton(
           onPressed: controller.copyToClipboard,
-          label: const Text('کپی کل کد'),
-          icon: const Icon(Iconsax.copy),
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+          icon: const Icon(Iconsax.copy, color: AppColors.onPrimary),
+          label: const Text(
+            'کپی کل کد',
+            style: TextStyle(color: AppColors.onPrimary),
           ),
         ),
       ],

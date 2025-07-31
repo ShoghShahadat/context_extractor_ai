@@ -1,24 +1,21 @@
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
+import 'settings_service.dart'; // <<< جدید: ایمپورت سرویس تنظیمات
+import '../../core/models/chat_message.dart';
 
-import '../../core/models/chat_message.dart'; // <<< اصلاح: ایمپورت مدل ChatMessage
-
-// <<< اصلاح: نام کنترلر برای جلوگیری از وابستگی چرخه‌ای حذف شد >>>
-// import '../../presentation/controllers/context_editor_controller.dart';
-
-// <<< جدید: یک شمارنده برای تعریف قصد کاربر >>>
+// ... (کلاس‌های AiIntent و AiChatResponse بدون تغییر باقی می‌مانند) ...
 enum AiIntent {
-  findFiles, // قصد کاربر، یافتن فایل است
-  chatReply, // قصد کاربر، یک گفتگوی عادی است
-  unknown, // قصد نامشخص
+  findFiles,
+  chatReply,
+  unknown,
 }
 
-// <<< جدید: یک کلاس جامع برای نگهداری پاسخ ساختاریافته از AI >>>
 class AiChatResponse {
   final AiIntent intent;
   final List<String> relevantFiles;
-  final String responseText; // می‌تواند تحلیل (rationale) یا پاسخ چت باشد
+  final String responseText;
 
   AiChatResponse({
     required this.intent,
@@ -44,32 +41,26 @@ class AiChatResponse {
   }
 }
 
-class GeminiService {
-  final List<String> _apiKeys = [
-    "AIzaSyBwXo5GlQbgS6cUWd53yDcg1wFjE8bNg0o",
-    "AIzaSyBtFUS6aAbg0yrP26EUUpq3e-LOEnE8nbc",
-    "AIzaSyDl3q_1XE-Z5tcqUwohRwDT4O8Fqil08YM",
-    "AIzaSyAxEwehsoZSNWKFBoU34R8bj_abr5XSAVs",
-    "AIzaSyB_1KD_P5TIRhupFRdgM0gW-zbFu_9zHzo",
-    "AIzaSyDy3883QLDktFvIBBG3t3HGsnV8tmSQmY4",
-    "AIzaSyB3JrrU_EuljbkeSmvZmf9ui0cLg1FCOFQ",
-    "AIzaSyBmWBm6brVvDvFELtMtlgbmbO2dtM9it1g",
-    "AIzaSyC_YdOMeNNNsbOA9RlonOW5aKfY-zldQE4",
-    "AIzaSyBj_hHcr4DBRJC9I5qAaeDMnvlWymu_k6c",
-    "AIzaSyDAXiL6g-_JmWH9R27rnz59mibeEO1DVaY",
-    "AIzaSyAnVGp0EXkdtBTX8BpbVFuQ2krIl74fyR8",
-    "AIzaSyDn8U_agAOIQ8oQUgsdHnQzYiHzx0WQUJY",
-    "AIzaSyBwgzmLb1yHBkILyrBmvGX0DrUPCKqHBXM",
-  ];
+class GeminiService extends GetxService {
+  // <<< اصلاح: وابستگی به سرویس تنظیمات >>>
+  final SettingsService _settingsService = Get.find();
 
+  // <<< اصلاح: لیست کلیدهای API دیگر هاردکد نیست >>>
+  late List<String> _apiKeys;
   int _currentKeyIndex = 0;
 
-  GeminiService() {
+  @override
+  void onInit() {
+    super.onInit();
+    _loadApiKeys();
+  }
+
+  void _loadApiKeys() {
+    _apiKeys = _settingsService.getApiKeys();
     if (_apiKeys.isNotEmpty) {
-      debugPrint(
-          '✅ ${_apiKeys.length} API keys loaded successfully from code.');
+      debugPrint('✅ ${_apiKeys.length} API keys loaded from SettingsService.');
     } else {
-      debugPrint("❌ FATAL: No Gemini API keys found in the hardcoded list.");
+      debugPrint("❌ WARNING: No Gemini API keys found in settings.");
     }
   }
 
@@ -81,7 +72,7 @@ class GeminiService {
       apiKey: currentKey,
       generationConfig: GenerationConfig(
         responseMimeType: "application/json",
-        temperature: 0.1, // کاهش دما برای دقت بیشتر در تحلیل فنی
+        temperature: 0.1,
       ),
     );
   }
@@ -107,8 +98,12 @@ class GeminiService {
 
   Future<String> _generateWithRetry(String prompt,
       {bool forJson = true}) async {
+    // <<< جدید: هر بار کلیدها را مجدداً بارگذاری می‌کنیم تا تغییرات اعمال شوند >>>
+    _loadApiKeys();
+
     if (_apiKeys.isEmpty) {
-      throw Exception("هیچ کلید API برای استفاده وجود ندارد.");
+      throw Exception(
+          "هیچ کلید API برای استفاده وجود ندارد. لطفاً از بخش تنظیمات کلید خود را اضافه کنید.");
     }
 
     debugPrint("===================== PROMPT SENT TO AI =====================");
@@ -159,6 +154,7 @@ class GeminiService {
     throw Exception("تمام کلیدهای API به دلیل محدودیت یا خطا ناموفق بودند.");
   }
 
+  // ... (متدهای getAiResponse, generateAiHeader, و پرامپت‌ها بدون تغییر باقی می‌مانند) ...
   Future<AiChatResponse> getAiResponse({
     required Map<String, String> projectImports,
     required String userPrompt,
@@ -198,7 +194,6 @@ class GeminiService {
     return _generateWithRetry(prompt, forJson: false);
   }
 
-  /// <<< بازمهندسی کامل پرامپت برای تحلیل دقیق و جامع >>>
   String _buildIntentDetectionPrompt(Map<String, String> projectImports,
       String userPrompt, List<ChatMessage> chatHistory) {
     final importsData = projectImports.entries.map((entry) {
@@ -259,7 +254,6 @@ class GeminiService {
     """;
   }
 
-  // <<< اصلاح کلیدی: پرامپت برای گنجاندن نمودار درختی کامل پروژه به‌روز شد >>>
   String _buildHeaderPromptV2(
       {required String directoryTree,
       required String userGoal,

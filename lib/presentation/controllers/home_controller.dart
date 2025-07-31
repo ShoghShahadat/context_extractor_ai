@@ -99,7 +99,6 @@ class HomeController extends GetxController {
     );
   }
 
-  // <<< اصلاح کامل: بازنویسی دیالوگ با سبک مینیمال جدید >>>
   void _showProgressDialog(String title) {
     statusMessage.value = 'در حال خواندن و ساختاربندی فایل‌ها...';
     Get.dialog(
@@ -109,7 +108,9 @@ class HomeController extends GetxController {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SpinKitFadingCircle(color: AppColors.primary, size: 40),
+              // <<< اصلاح: استفاده از AppColors.primaryStart >>>
+              const SpinKitFadingCircle(
+                  color: AppColors.primaryStart, size: 40),
               const SizedBox(height: 24),
               Text('در حال پردازش',
                   style: Get.textTheme.titleLarge

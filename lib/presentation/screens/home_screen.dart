@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/home_controller.dart';
+import '../routes/app_pages.dart'; // <<< جدید: ایمپورت برای دسترسی به مسیرها
 import '../theme/app_theme.dart';
 
 class HomeScreen extends GetView<HomeController> {
@@ -41,7 +42,8 @@ class Sidebar extends StatelessWidget {
           // هدر نوار کناری
           Row(
             children: [
-              Icon(Iconsax.cpu_charge, color: AppColors.primary, size: 28),
+              const Icon(Iconsax.cpu_charge,
+                  color: AppColors.primaryStart, size: 28),
               const SizedBox(width: 12),
               const Text(
                 'Context AI',
@@ -73,6 +75,15 @@ class Sidebar extends StatelessWidget {
             text: 'انتخاب فایل تکی',
             icon: Iconsax.document_text_1,
             onTap: controller.pickAndProcessProjectFile,
+          ),
+          const Spacer(), // <<< جدید: فضا را به پایین هل می‌دهد
+          const Divider(),
+          const SizedBox(height: 8),
+          // <<< جدید: دکمه تنظیمات >>>
+          SidebarButton(
+            text: 'تنظیمات',
+            icon: Iconsax.setting_2,
+            onTap: () => Get.toNamed(AppPages.settings),
           ),
         ],
       ),
