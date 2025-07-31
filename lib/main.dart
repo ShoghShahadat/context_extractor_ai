@@ -9,13 +9,10 @@ import 'core/services/settings_service.dart';
 Future<void> main() async {
   // اطمینان از راه‌اندازی کامل فلاتر
   WidgetsFlutterBinding.ensureInitialized();
-  // <<< اصلاح کلیدی: راه‌اندازی سرویس‌های حیاتی قبل از اجرای برنامه >>>
   await initServices();
   runApp(const MyApp());
 }
 
-/// تابع جدید برای راه‌اندازی و ثبت سرویس‌های اصلی برنامه
-/// این تضمین می‌کند که سرویس‌ها قبل از نیاز، کاملاً آماده هستند.
 Future<void> initServices() async {
   debugPrint("Initializing critical services...");
 
