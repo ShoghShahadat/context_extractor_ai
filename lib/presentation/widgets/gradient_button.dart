@@ -18,7 +18,8 @@ class GradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: AppGradients.primary,
+        // <<< اصلاح: استفاده از نام صحیح گرادیان >>>
+        gradient: AppColors.primaryGradient,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(

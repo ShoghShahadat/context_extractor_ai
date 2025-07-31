@@ -103,30 +103,31 @@ class HomeController extends GetxController {
     statusMessage.value = 'در حال خواندن و ساختاربندی فایل‌ها...';
     Get.dialog(
       Dialog(
+        // <<< اصلاح: استفاده از رنگ‌های تم فعال >>>
+        backgroundColor: Get.theme.colorScheme.surface,
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // <<< اصلاح: استفاده از AppColors.primaryStart >>>
               const SpinKitFadingCircle(
                   color: AppColors.primaryStart, size: 40),
               const SizedBox(height: 24),
               Text('در حال پردازش',
                   style: Get.textTheme.titleLarge
-                      ?.copyWith(color: AppColors.textPrimary)),
+                      ?.copyWith(color: Get.theme.colorScheme.onSurface)),
               const SizedBox(height: 8),
               Text(
                 title,
                 textAlign: TextAlign.center,
                 style: Get.textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.textSecondary),
+                    ?.copyWith(color: Get.theme.colorScheme.tertiary),
               ),
               const SizedBox(height: 16),
               Obx(() => Text(statusMessage.value,
                   textAlign: TextAlign.center,
                   style: Get.textTheme.bodySmall
-                      ?.copyWith(color: AppColors.textSecondary))),
+                      ?.copyWith(color: Get.theme.colorScheme.tertiary))),
             ],
           ),
         ),

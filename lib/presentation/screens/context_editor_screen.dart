@@ -6,9 +6,9 @@ import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/context_editor_controller.dart';
 import '../theme/app_theme.dart';
-import '../widgets/gradient_button.dart'; // <<< جدید: ایمپورت ویجت دکمه گرادیانی
+import '../widgets/gradient_button.dart';
 
-// صفحه اصلی ویرایشگر با چیدمان جدید
+// <<< اصلاح: حذف const از سازنده >>>
 class ContextEditorScreen extends GetView<ContextEditorController> {
   const ContextEditorScreen({super.key});
 
@@ -51,7 +51,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
-  // <<< اصلاح: استفاده از ویجت GradientButton >>>
   Widget _buildGenerateButton() {
     return Obx(() => GradientButton(
           onPressed: controller.isGeneratingFinalCode.value
@@ -69,7 +68,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
         ));
   }
 
-  // پنل کنترل با طراحی مینیمال
   Widget _buildControlPanel(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -81,7 +79,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
           Text(
             'به هوش مصنوعی بگویید روی کدام بخش تمرکز کند. می‌توانید از پنل چت هم استفاده کنید.',
             style: context.textTheme.bodyMedium
-                ?.copyWith(color: AppColors.textSecondary),
+                ?.copyWith(color: context.theme.colorScheme.tertiary),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -92,7 +90,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
             maxLines: 2,
           ),
           const SizedBox(height: 16),
-          // این دکمه تاکیدی نیست و استایل عادی دارد
           ElevatedButton.icon(
             onPressed: controller.findFilesFromPanel,
             icon: const Icon(Iconsax.magicpen),
@@ -106,7 +103,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
           Text(
             'دستورالعمل نهایی خود برای هوش مصنوعی را اینجا بنویسید.',
             style: context.textTheme.bodyMedium
-                ?.copyWith(color: AppColors.textSecondary),
+                ?.copyWith(color: context.theme.colorScheme.tertiary),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -123,10 +120,9 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
-  // پنل درخت فایل‌ها
   Widget _buildTreeViewPanel(BuildContext context) {
     return Container(
-      color: AppColors.sidebar,
+      color: context.theme.colorScheme.surfaceVariant, // sidebar color
       child: Obx(() {
         if (controller.treeNodes.isEmpty) {
           return const Center(
@@ -147,7 +143,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
-  // پنل چت
   Widget _buildChatPanel(BuildContext context) {
     return Column(
       children: [
@@ -163,11 +158,10 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
                 },
               )),
         ),
-        // فیلد ورودی چت
         Container(
           padding: const EdgeInsets.all(12.0),
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.border)),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: context.theme.dividerColor)),
           ),
           child: Row(
             children: [
@@ -191,15 +185,14 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
                         child: SpinKitFadingCircle(
                             color: AppColors.primaryStart, size: 24),
                       )
-                    // <<< اصلاح: دکمه ارسال چت با گرادیان >>>
                     : InkWell(
                         onTap: controller.sendChatMessage,
                         borderRadius: BorderRadius.circular(50),
                         child: Ink(
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            gradient: AppGradients.primary,
+                          decoration: const BoxDecoration(
+                            gradient: AppColors.primaryGradient,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Iconsax.send_2,
@@ -214,7 +207,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
     );
   }
 
-  // ویجت نمایش وضعیت
   Widget _buildStatusArea(BuildContext context) {
     return Obx(() {
       final isLoading = controller.isAiFindingFiles.value ||
@@ -222,7 +214,7 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -230,7 +222,8 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
             if (isLoading)
               const SpinKitFadingCircle(color: AppColors.primaryStart, size: 24)
             else
-              const Icon(Iconsax.info_circle, color: AppColors.textSecondary),
+              Icon(Iconsax.info_circle,
+                  color: context.theme.colorScheme.tertiary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -245,7 +238,6 @@ class ContextEditorScreen extends GetView<ContextEditorController> {
   }
 }
 
-// ویجت بازطراحی شده گره درخت
 class _TreeNodeWidget extends StatelessWidget {
   final TreeNode node;
   final ContextEditorController controller;
@@ -274,7 +266,6 @@ class _TreeNodeWidget extends StatelessWidget {
               padding: EdgeInsets.only(
                   left: (16.0 * depth) + 8, right: 8, top: 6, bottom: 6),
               decoration: BoxDecoration(
-                // <<< اصلاح: استفاده از رنگ شروع گرادیان برای آیتم منتخب >>>
                 color: isSelected
                     ? AppColors.primaryStart.withOpacity(0.15)
                     : Colors.transparent,
@@ -290,13 +281,13 @@ class _TreeNodeWidget extends StatelessWidget {
                       size: 20,
                       color: isSelected
                           ? AppColors.primaryStart
-                          : AppColors.textSecondary,
+                          : context.theme.colorScheme.tertiary,
                     )
                   else
                     Icon(
                       isExpanded ? Iconsax.arrow_down_2 : Iconsax.arrow_right_3,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.theme.colorScheme.tertiary,
                     ),
                   const SizedBox(width: 10),
                   if (!node.isFile)
@@ -314,8 +305,8 @@ class _TreeNodeWidget extends StatelessWidget {
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.normal,
                         color: isSelected
-                            ? AppColors.textPrimary
-                            : AppColors.textSecondary,
+                            ? context.theme.colorScheme.onSurface
+                            : context.theme.colorScheme.tertiary,
                       ),
                     ),
                   ),
@@ -341,7 +332,6 @@ class _TreeNodeWidget extends StatelessWidget {
   }
 }
 
-// ویجت بازطراحی شده حباب چت
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   const ChatBubble({super.key, required this.message});
@@ -358,33 +348,35 @@ class ChatBubble extends StatelessWidget {
         children: [
           if (!isUser)
             const CircleAvatar(
-              backgroundColor: AppColors.surface,
-              child: Icon(Iconsax.cpu, color: AppColors.primaryStart, size: 20),
+              backgroundColor: AppColors.primaryStart,
+              child: Icon(Iconsax.cpu, color: AppColors.onPrimary, size: 20),
             ),
           const SizedBox(width: 10),
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               decoration: BoxDecoration(
-                // <<< اصلاح: حباب پیام کاربر با گرادیان >>>
-                gradient: isUser ? AppGradients.primary : null,
-                color: isUser ? null : AppColors.surface,
+                gradient: isUser ? AppColors.primaryGradient : null,
+                color: isUser ? null : context.theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16).copyWith(
                   bottomLeft: isUser ? const Radius.circular(16) : Radius.zero,
                   bottomRight: isUser ? Radius.zero : const Radius.circular(16),
                 ),
               ),
               child: Text(message.text,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary, height: 1.5)),
+                  style: TextStyle(
+                      color: isUser
+                          ? AppColors.onPrimary
+                          : context.theme.colorScheme.onSurface,
+                      height: 1.5)),
             ),
           ),
           if (isUser) const SizedBox(width: 10),
           if (isUser)
-            const CircleAvatar(
-              backgroundColor: AppColors.surface,
-              child:
-                  Icon(Iconsax.user, color: AppColors.textSecondary, size: 20),
+            CircleAvatar(
+              backgroundColor: context.theme.colorScheme.surface,
+              child: Icon(Iconsax.user,
+                  color: context.theme.colorScheme.tertiary, size: 20),
             ),
         ],
       ),

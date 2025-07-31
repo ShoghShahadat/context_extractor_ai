@@ -2,26 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/home_controller.dart';
-import '../routes/app_pages.dart'; // <<< جدید: ایمپورت برای دسترسی به مسیرها
+import '../controllers/theme_controller.dart'; // <<< جدید: ایمپورت کنترلر تم
+import '../routes/app_pages.dart';
 import '../theme/app_theme.dart';
 
 class HomeScreen extends GetView<HomeController> {
-  const HomeScreen({super.key});
+  HomeScreen({super.key});
+
+  // <<< جدید: دسترسی به کنترلر تم برای استفاده در کلید >>>
+  final ThemeController themeController = Get.find();
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Row(
-        children: [
-          // ستون سمت راست: نوار کناری
-          Sidebar(),
-          // ستون سمت چپ: محتوای اصلی
-          Expanded(
-            child: MainContent(),
-          ),
-        ],
-      ),
-    );
+    // <<< اصلاح کلیدی: استفاده از Obx و ValueKey برای بازسازی اجباری >>>
+    // این ویجت به تغییرات تم گوش می‌دهد و با تغییر کلید، کل Scaffold را از نو می‌سازد.
+    return Obx(() {
+      return Scaffold(
+        key: ValueKey(themeController.themeMode.value),
+        body: Row(
+          children: [
+            Sidebar(),
+            Expanded(
+              child: MainContent(),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -34,37 +41,35 @@ class Sidebar extends StatelessWidget {
     final controller = Get.find<HomeController>();
     return Container(
       width: 280,
-      color: AppColors.sidebar,
+      color: Get.theme.colorScheme.surfaceVariant, // sidebar color
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // هدر نوار کناری
           Row(
             children: [
               const Icon(Iconsax.cpu_charge,
                   color: AppColors.primaryStart, size: 28),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Context AI',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Get.theme.colorScheme.onSurface,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 40),
-          const Text(
+          Text(
             'شروع تحلیل جدید',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: Get.theme.colorScheme.tertiary, // textSecondary
               fontSize: 14,
             ),
           ),
           const SizedBox(height: 16),
-          // دکمه‌های اقدام
           SidebarButton(
             text: 'انتخاب پوشه پروژه',
             icon: Iconsax.folder_open,
@@ -76,10 +81,9 @@ class Sidebar extends StatelessWidget {
             icon: Iconsax.document_text_1,
             onTap: controller.pickAndProcessProjectFile,
           ),
-          const Spacer(), // <<< جدید: فضا را به پایین هل می‌دهد
+          const Spacer(),
           const Divider(),
           const SizedBox(height: 8),
-          // <<< جدید: دکمه تنظیمات >>>
           SidebarButton(
             text: 'تنظیمات',
             icon: Iconsax.setting_2,
@@ -124,7 +128,7 @@ class _SidebarButtonState extends State<SidebarButton> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: _isHovered
-                ? AppColors.surface.withOpacity(0.8)
+                ? Get.theme.colorScheme.surface.withOpacity(0.8)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
@@ -133,8 +137,8 @@ class _SidebarButtonState extends State<SidebarButton> {
               Icon(
                 widget.icon,
                 color: _isHovered
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
+                    ? Get.theme.colorScheme.onSurface
+                    : Get.theme.colorScheme.tertiary,
                 size: 20,
               ),
               const SizedBox(width: 16),
@@ -142,8 +146,8 @@ class _SidebarButtonState extends State<SidebarButton> {
                 widget.text,
                 style: TextStyle(
                   color: _isHovered
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                      ? Get.theme.colorScheme.onSurface
+                      : Get.theme.colorScheme.tertiary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -167,33 +171,34 @@ class MainContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'پروژه‌های اخیر',
             style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary),
+                color: Get.theme.colorScheme.onSurface),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'یکی از پروژه‌هایی که اخیراً تحلیل کرده‌اید را برای ادامه انتخاب کنید.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style:
+                TextStyle(fontSize: 14, color: Get.theme.colorScheme.tertiary),
           ),
           const SizedBox(height: 24),
           const Divider(),
           Expanded(
             child: Obx(() {
               if (controller.recentPaths.isEmpty) {
-                return const Center(
+                return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Iconsax.clock,
-                          size: 48, color: AppColors.textSecondary),
-                      SizedBox(height: 16),
+                          size: 48, color: Get.theme.colorScheme.tertiary),
+                      const SizedBox(height: 16),
                       Text(
                         'تاریخچه‌ای وجود ندارد',
-                        style: TextStyle(color: AppColors.textSecondary),
+                        style: TextStyle(color: Get.theme.colorScheme.tertiary),
                       ),
                     ],
                   ),
@@ -242,7 +247,8 @@ class _HistoryListItemState extends State<HistoryListItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          color: _isHovered ? AppColors.surface : Colors.transparent,
+          color:
+              _isHovered ? Get.theme.colorScheme.surface : Colors.transparent,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Row(
             children: [
@@ -252,18 +258,18 @@ class _HistoryListItemState extends State<HistoryListItem> {
                   children: [
                     Text(
                       widget.path.split(RegExp(r'[/\\]')).last,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: AppColors.textPrimary,
+                        color: Get.theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       widget.path,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                          color: Get.theme.colorScheme.tertiary, fontSize: 12),
                     ),
                   ],
                 ),
@@ -272,8 +278,8 @@ class _HistoryListItemState extends State<HistoryListItem> {
               Icon(
                 Iconsax.arrow_left_2,
                 color: _isHovered
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
+                    ? Get.theme.colorScheme.onSurface
+                    : Get.theme.colorScheme.tertiary,
               ),
             ],
           ),

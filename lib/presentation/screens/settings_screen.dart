@@ -1,12 +1,11 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_html/flutter_html.dart'; // <<< جدید: ایمپورت پکیج
+import 'package:flutter_html/flutter_html.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import '../controllers/settings_controller.dart';
 import '../theme/app_theme.dart';
-import '../widgets/gradient_button.dart';
 
-// <<< جدید: محتوای HTML برای راهنما >>>
 const String apiKeyInstructionsHtml = """
 <p>برای استفاده از قابلیت‌های هوش مصنوعی این برنامه، به یک کلید API از <b>Google AI Studio</b> نیاز دارید. دریافت این کلید کاملاً رایگان است.</p>
 <ol>
@@ -19,79 +18,109 @@ const String apiKeyInstructionsHtml = """
 """;
 
 class SettingsScreen extends GetView<SettingsController> {
-  const SettingsScreen({super.key});
+  SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('تنظیمات'),
-        leading: IconButton(
-          icon: const Icon(Iconsax.arrow_left_2),
-          onPressed: () => Get.back(),
+    // استفاده از Obx و ValueKey برای تضمین بازسازی کامل صفحه
+    return Obx(() {
+      return Scaffold(
+        key: ValueKey(controller.themeController.themeMode.value),
+        appBar: AppBar(
+          title: const Text('تنظیمات'),
+          leading: IconButton(
+            icon: const Icon(Iconsax.arrow_left_2),
+            onPressed: () => Get.back(),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // <<< جدید: بخش راهنمای دریافت کلید >>>
-                _buildSectionHeader('راهنمای دریافت کلید API',
-                    'برای فعال‌سازی دستیار هوشمند، مراحل زیر را دنبال کنید.'),
-                _buildInstructionsCard(),
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 24),
-
-                _buildSectionHeader('کلیدهای API جمنای',
-                    'لیست کلیدهای API خود را برای استفاده در برنامه مدیریت کنید.'),
-                _buildListEditor(
-                  controller.apiKeys,
-                  controller.apiKeyController,
-                  'یک کلید API جدید وارد کنید...',
-                  controller.addApiKey,
-                  controller.removeApiKey,
-                  Iconsax.key,
-                ),
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 24),
-                _buildSectionHeader('پوشه‌های مستثنی',
-                    'پوشه‌هایی که باید در هنگام تحلیل پروژه نادیده گرفته شوند.'),
-                _buildListEditor(
-                  controller.excludedDirs,
-                  controller.excludedDirController,
-                  'نام یک پوشه جدید وارد کنید...',
-                  controller.addExcludedDir,
-                  controller.removeExcludedDir,
-                  Iconsax.folder_minus,
-                ),
-                const SizedBox(height: 40),
-                // GradientButton(
-                //   onPressed: controller.saveSettings,
-                //   label: const Text('ذخیره تغییرات'),
-                //   icon: const Icon(Iconsax.save_2, color: AppColors.onPrimary),
-                // ),
-              ],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSectionHeader('ظاهر برنامه',
+                      'حالت نمایش روشن یا تاریک را انتخاب کنید.'),
+                  _buildThemeSwitcher(),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('راهنمای دریافت کلید API',
+                      'برای فعال‌سازی دستیار هوشمند، مراحل زیر را دنبال کنید.'),
+                  _buildInstructionsCard(),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('کلیدهای API جمنای',
+                      'لیست کلیدهای API خود را برای استفاده در برنامه مدیریت کنید.'),
+                  _buildListEditor(
+                    controller.apiKeys,
+                    controller.apiKeyController,
+                    'یک کلید API جدید وارد کنید...',
+                    controller.addApiKey,
+                    controller.removeApiKey,
+                    Iconsax.key,
+                  ),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('پوشه‌های مستثنی',
+                      'پوشه‌هایی که باید در هنگام تحلیل پروژه نادیده گرفته شوند.'),
+                  _buildListEditor(
+                    controller.excludedDirs,
+                    controller.excludedDirController,
+                    'نام یک پوشه جدید وارد کنید...',
+                    controller.addExcludedDir,
+                    controller.removeExcludedDir,
+                    Iconsax.folder_minus,
+                  ),
+                ],
+              ),
             ),
           ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildThemeSwitcher() {
+    final isDarkMode =
+        controller.themeController.themeMode.value == ThemeMode.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Get.theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Get.theme.dividerColor),
+      ),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('حالت تاریک (Dark Mode)'),
+        leading: Icon(
+          isDarkMode ? Iconsax.moon : Iconsax.sun_1,
+          color: isDarkMode ? AppColors.primaryStart : Colors.orange,
+        ),
+        trailing: CupertinoSwitch(
+          value: isDarkMode,
+          onChanged: (value) {
+            controller.toggleTheme(value);
+          },
+          activeColor: AppColors.primaryStart,
         ),
       ),
     );
   }
 
-  // <<< جدید: ویجت برای کارت راهنما >>>
   Widget _buildInstructionsCard() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Get.theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Get.theme.dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -99,15 +128,14 @@ class SettingsScreen extends GetView<SettingsController> {
           Html(
             data: apiKeyInstructionsHtml,
             style: {
-              // <<< اصلاح کلیدی: افزودن جهت راست به چپ برای متن >>>
               "body": Style(
-                color: AppColors.textSecondary,
+                color: Get.theme.colorScheme.onSurface.withOpacity(0.7),
                 fontSize: FontSize.medium,
                 lineHeight: LineHeight.number(1.6),
-                direction: TextDirection.rtl, // این خط متن را راست‌چین می‌کند
+                direction: TextDirection.rtl,
               ),
               "b": Style(
-                color: AppColors.textPrimary,
+                color: Get.theme.colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
               ),
               "ol": Style(padding: HtmlPaddings.only(right: 20)),
@@ -118,11 +146,6 @@ class SettingsScreen extends GetView<SettingsController> {
             onPressed: controller.launchApiKeyUrl,
             icon: const Icon(Iconsax.export_1),
             label: const Text('دریافت کلید API از Google AI Studio'),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.surface.withOpacity(0.8),
-                foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: AppColors.border)),
           )
         ],
       ),
@@ -137,8 +160,8 @@ class SettingsScreen extends GetView<SettingsController> {
         const SizedBox(height: 8),
         Text(
           subtitle,
-          style: Get.textTheme.bodyMedium
-              ?.copyWith(color: AppColors.textSecondary),
+          style: Get.textTheme.bodyMedium?.copyWith(
+              color: Get.theme.colorScheme.onSurface.withOpacity(0.6)),
         ),
         const SizedBox(height: 24),
       ],
@@ -156,9 +179,9 @@ class SettingsScreen extends GetView<SettingsController> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Get.theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Get.theme.dividerColor),
       ),
       child: Column(
         children: [
@@ -186,11 +209,13 @@ class SettingsScreen extends GetView<SettingsController> {
           const Divider(),
           Obx(
             () => items.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24.0),
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24.0),
                     child: Text(
                       'هیچ آیتمی وجود ندارد.',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(
+                          color:
+                              Get.theme.colorScheme.onSurface.withOpacity(0.6)),
                     ),
                   )
                 : ListView.builder(
@@ -200,7 +225,9 @@ class SettingsScreen extends GetView<SettingsController> {
                     itemBuilder: (context, index) {
                       final item = items[index];
                       return ListTile(
-                        leading: Icon(itemIcon, color: AppColors.textSecondary),
+                        leading: Icon(itemIcon,
+                            color: Get.theme.colorScheme.onSurface
+                                .withOpacity(0.6)),
                         title: Text(item),
                         trailing: IconButton(
                           icon: const Icon(Iconsax.trash, color: Colors.red),
