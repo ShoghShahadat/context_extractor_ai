@@ -1,0 +1,305 @@
+# ======================================================================
+#  🚀 گردش کار نهایی، کامل و جامع گیت‌هاب برای پروژه فلاتر
+#  معماری چندمرحله‌ای، بهینه‌سازی شده برای تمام پلتفرم‌ها
+# ======================================================================
+name: 🐦 Build, Deploy & Optimize Flutter App
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'linux/**'
+      - 'windows/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.32.2'
+  JAVA_VERSION: '17'
+  PUBLIC_REPO_PATH: ShoghShahadat/context_extractor_ai
+  PUBLIC_REPO_NAME: context_extractor_ai
+  PUBLIC_REPO_OWNER: ShoghShahadat
+
+jobs:
+  # ======================================================================
+  #  Job 1: ⚙️ آماده‌سازی محیط
+  # ======================================================================
+  setup-environment:
+    name: '⚙️ 1. Setup Environment'
+    runs-on: ubuntu-latest
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+      - name: '🐦 Setup Flutter SDK & Cache'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: 'ℹ️ Display Flutter Version'
+        run: flutter --version
+
+  # ======================================================================
+  #  Job 2: 🤖 بیلد اندروید (کامل و بهینه)
+  # ======================================================================
+  build-android:
+    name: '🤖 2. Build Android'
+    needs: setup-environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+      - name: '🐦 Restore Flutter from Cache'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: '☕ Setup Java (JDK)'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: '🗄️ Cache Gradle Dependencies'
+        id: cache-gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: '🗄️ Cache Flutter Pub Dependencies'
+        id: cache-pub
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PUB_CACHE }}
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+      - name: '🗄️ Cache Compiler Workbench (.dart_tool)'
+        uses: actions/cache@v4
+        with:
+          path: .dart_tool
+          key: ${{ runner.os }}-dart-workbench-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-dart-workbench-
+      - name: '🔑 Setup Android Keystore'
+        run: |
+          echo "::group::🔑 Setting up Android keystore"
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > android/app/Releasekey.jks
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=app/Releasekey.jks" >> android/key.properties
+          echo "::endgroup::"
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      - name: '📊 Reporting & Getting Dependencies'
+        run: |
+          echo "::group::📈 Cache Status Report"
+          if [ "${{ steps.cache-gradle.outputs.cache-hit }}" = "true" ]; then
+             echo "✅ Gradle cache restored successfully."
+          else
+             echo "⚠️ Gradle cache not found. Will be created for the next run."
+          fi
+          if [ "${{ steps.cache-pub.outputs.cache-hit }}" = "true" ]; then
+             echo "✅ Pub cache restored successfully."
+          else
+             echo "⚠️ Pub cache not found. Will be created for the next run."
+          fi
+          echo "::endgroup::"
+          echo "::group::📦 Installing Flutter dependencies (flutter pub get)"
+          flutter pub get
+          echo "::endgroup::"
+      - name: '🛠️ Build Android APKs (Split per ABI)'
+        run: |
+          echo "::group::🚀 Building Android APK (flutter build apk)"
+          flutter build apk --split-per-abi --release
+          echo "::endgroup::"
+      - name: '⬆️ Upload Android APK (arm64-v8a)'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-arm64-v8a
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+      - name: '⬆️ Upload Android APK (armeabi-v7a)'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-armeabi-v7a
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+      - name: '⬆️ Upload Android APK (x86_64)'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-x86_64
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+      - name: '⬆️ Upload All Android APKs (Combined Zip)'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apks-combined
+          path: build/app/outputs/flutter-apk/
+
+  # ======================================================================
+  #  Job 3: 🪟 بیلد ویندوز
+  # ======================================================================
+  build-windows:
+    name: '🪟 3. Build Windows'
+    needs: setup-environment
+    runs-on: windows-latest
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+      - name: '🐦 Restore Flutter from Cache'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: '⚙️ Install and start sccache'
+        uses: mozilla/sccache-action@v0.0.5
+      - name: '🗄️ Cache Windows-Specific Dependencies (sccache)'
+        uses: actions/cache@v4
+        with:
+          path: ~\.cache\sccache
+          key: ${{ runner.os }}-sccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-
+      - name: '🔧 Configure build to use sccache'
+        shell: powershell
+        run: |
+          echo "CMAKE_C_COMPILER_LAUNCHER=sccache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: '⚙️ Enable Windows & Get Dependencies'
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+      - name: '🛠️ Build Windows Executable'
+        run: flutter build windows --release
+      - name: '📊 Show sccache statistics'
+        run: sccache -s
+      - name: '⬆️ Upload Windows Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: build/windows/x64/runner/Release/
+
+  # ======================================================================
+  #  Job 4: 🐧 بیلد لینوکس
+  # ======================================================================
+  build-linux:
+    name: '🐧 4. Build Linux'
+    needs: setup-environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+      - name: '🐦 Restore Flutter from Cache'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: '🗄️ Cache Build Tools (Pub, .dart_tool)'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-dart-workbench-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-dart-workbench-
+      - name: '🔧 Install Linux Build Dependencies'
+        run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - name: '⚙️ Enable Linux & Get Dependencies'
+        run: |
+          flutter config --enable-linux-desktop
+          flutter pub get
+      - name: '🛠️ Build Linux Executable'
+        run: flutter build linux --release
+      - name: '⬆️ Upload Linux Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: build/linux/x64/release/bundle/
+          
+  # ======================================================================
+  #  Job 5: 🌐 بیلد وب
+  # ======================================================================
+  build-web:
+    name: '🌐 5. Build Web'
+    needs: setup-environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: '📥 Checkout Repository'
+        uses: actions/checkout@v4
+      - name: '🐦 Restore Flutter from Cache'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: '🗄️ Cache Compiler Workbench (.dart_tool) and Pub'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-dart-workbench-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-dart-workbench-
+      - name: '🗄️ Cache Final Web Build Output'
+        id: cache-web-build
+        uses: actions/cache@v4
+        with:
+          path: build/web
+          key: ${{ runner.os }}-web-build-${{ hashFiles('lib/**', 'web/**', 'pubspec.yaml', 'pubspec.lock') }}
+      - name: '⚙️ Get Dependencies'
+        run: flutter pub get
+      - name: '🛠️ Build Web if final output cache missed'
+        if: steps.cache-web-build.outputs.cache-hit != 'true'
+        run: flutter build web --release --base-href "/${{ env.PUBLIC_REPO_NAME }}/"
+      - name: '⬆️ Upload Web Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web
+          path: build/web/
+          
+  # ======================================================================
+  #  Job 6: 🚀 استقرار وب
+  # ======================================================================
+  deploy-web:
+    name: '🚀 6. Deploy Web'
+    needs: build-web
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: '📥 Download Web Artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-web
+          path: .
+      - name: '🚀 Deploy to Public GitHub Pages'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.PAT_FOR_PUBLIC_REPO }}
+          external_repository: ${{ env.PUBLIC_REPO_PATH }}
+          publish_branch: gh-pages
+          publish_dir: .
+      - name: '📝 Generate Deployment Link & Button'
+        run: |
+          PREVIEW_URL="https://${{ env.PUBLIC_REPO_OWNER }}.github.io/${{ env.PUBLIC_REPO_NAME }}/"
+          echo "# 🚀 استقرار وب در ویترین عمومی با موفقیت انجام شد!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "اپلیکیشن وب شما اکنون در GitHub Pages فعال و به‌روز است." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "می‌توانید پیش‌نمایش زنده را با کلیک روی دکمه‌ی زیبا و درخشان زیر مشاهده کنید:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<a href=\"$PREVIEW_URL\" target=\"_blank\"><img src=\"https://img.shields.io/badge/مشاهده_پیش‌نمایش_زنده-4CAF50?style=for-the-badge&logo=rocket&logoColor=white\" alt=\"Live Preview\"></a>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**لینک مستقیم:** [$PREVIEW_URL]($PREVIEW_URL)" >> $GITHUB_STEP_SUMMARY
