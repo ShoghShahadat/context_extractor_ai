@@ -1,20 +1,45 @@
-import 'package:context_extractor_ai/core/models/chat_message.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
 
-// <<< جدید: یک کلاس برای نگهداری پاسخ ساختاریافته از AI >>>
-class AiFileSelectionResponse {
+import '../../core/models/chat_message.dart'; // <<< اصلاح: ایمپورت مدل ChatMessage
+
+// <<< اصلاح: نام کنترلر برای جلوگیری از وابستگی چرخه‌ای حذف شد >>>
+// import '../../presentation/controllers/context_editor_controller.dart';
+
+// <<< جدید: یک شمارنده برای تعریف قصد کاربر >>>
+enum AiIntent {
+  findFiles, // قصد کاربر، یافتن فایل است
+  chatReply, // قصد کاربر، یک گفتگوی عادی است
+  unknown, // قصد نامشخص
+}
+
+// <<< جدید: یک کلاس جامع برای نگهداری پاسخ ساختاریافته از AI >>>
+class AiChatResponse {
+  final AiIntent intent;
   final List<String> relevantFiles;
-  final String rationale;
+  final String responseText; // می‌تواند تحلیل (rationale) یا پاسخ چت باشد
 
-  AiFileSelectionResponse(
-      {required this.relevantFiles, required this.rationale});
+  AiChatResponse({
+    required this.intent,
+    this.relevantFiles = const [],
+    required this.responseText,
+  });
 
-  factory AiFileSelectionResponse.fromJson(Map<String, dynamic> json) {
-    return AiFileSelectionResponse(
+  factory AiChatResponse.fromJson(Map<String, dynamic> json) {
+    var intent = AiIntent.unknown;
+    final intentString = json['intent'] as String?;
+    if (intentString == 'find_files') {
+      intent = AiIntent.findFiles;
+    } else if (intentString == 'chat_reply') {
+      intent = AiIntent.chatReply;
+    }
+
+    return AiChatResponse(
+      intent: intent,
       relevantFiles: List<String>.from(json['relevant_files'] ?? []),
-      rationale: json['rationale'] as String? ?? 'تحلیلی ارائه نشد.',
+      responseText: json['response_text'] as String? ??
+          'متاسفانه پاسخی برای ارائه ندارم.',
     );
   }
 }
@@ -56,7 +81,7 @@ class GeminiService {
       apiKey: currentKey,
       generationConfig: GenerationConfig(
         responseMimeType: "application/json",
-        temperature: 0.2, // کمی افزایش دما برای خلاقیت در تحلیل
+        temperature: 0.1, // کاهش دما برای دقت بیشتر در تحلیل فنی
       ),
     );
   }
@@ -134,15 +159,13 @@ class GeminiService {
     throw Exception("تمام کلیدهای API به دلیل محدودیت یا خطا ناموفق بودند.");
   }
 
-  /// <<< اصلاح شده: این متد اکنون یک آبجکت کامل پاسخ را برمی‌گرداند >>>
-  Future<AiFileSelectionResponse> findRelevantFiles({
+  Future<AiChatResponse> getAiResponse({
     required Map<String, String> projectImports,
-    required String userFocus,
-    required List<ChatMessage>
-        chatHistory, // <<< جدید: تاریخچه چت برای زمینه بهتر
+    required String userPrompt,
+    required List<ChatMessage> chatHistory,
   }) async {
-    final prompt = _buildImportBasedFileFinderPrompt(
-        projectImports, userFocus, chatHistory);
+    final prompt =
+        _buildIntentDetectionPrompt(projectImports, userPrompt, chatHistory);
     final responseText = await _generateWithRetry(prompt, forJson: true);
 
     final cleanJsonString =
@@ -150,7 +173,7 @@ class GeminiService {
 
     try {
       final decodedJson = json.decode(cleanJsonString);
-      return AiFileSelectionResponse.fromJson(decodedJson);
+      return AiChatResponse.fromJson(decodedJson);
     } catch (e) {
       debugPrint("JSON Decode Error: $e");
       debugPrint("Received String for decoding: $cleanJsonString");
@@ -162,25 +185,22 @@ class GeminiService {
     required String directoryTree,
     required String userGoal,
     required String pubspecContent,
-    required List<String> aiSuggestedFiles,
     required List<String> finalSelectedFiles,
     required String fullProjectContent,
   }) {
-    // این متد فعلا بدون تغییر باقی می‌ماند
     final prompt = _buildHeaderPromptV2(
       directoryTree: directoryTree,
       userGoal: userGoal,
       pubspecContent: pubspecContent,
-      aiSuggestedFiles: aiSuggestedFiles,
       finalSelectedFiles: finalSelectedFiles,
       fullProjectContent: fullProjectContent,
     );
     return _generateWithRetry(prompt, forJson: false);
   }
 
-  /// <<< اصلاح شده: پرامپت اکنون تاریخچه چت را دریافت می‌کند و درخواست تحلیل (rationale) دارد >>>
-  String _buildImportBasedFileFinderPrompt(Map<String, String> projectImports,
-      String userFocus, List<ChatMessage> chatHistory) {
+  /// <<< بازمهندسی کامل پرامپت برای تحلیل دقیق و جامع >>>
+  String _buildIntentDetectionPrompt(Map<String, String> projectImports,
+      String userPrompt, List<ChatMessage> chatHistory) {
     final importsData = projectImports.entries.map((entry) {
       if (entry.value.trim().isEmpty) {
         return 'File: "${entry.key}"\n(No imports or exports)';
@@ -193,58 +213,59 @@ class GeminiService {
     }).join('\n');
 
     return """
-    You are a world-class Senior Software Architect specializing in dependency analysis. You are acting as an intelligent assistant for a developer.
-    The developer has provided you with a dependency map of their project. You also have the history of your conversation.
+    You are a friendly but extremely meticulous AI software architect. Your primary goal is to help a developer by analyzing their project's dependency graph. You speak Persian.
 
-    Your mission is twofold:
-    1.  **Analyze and Select:** Based on the user's latest request and the conversation history, identify ALL files relevant to the task by analyzing the dependency graph.
-    2.  **Explain Your Reasoning:** Provide a concise, professional, and insightful explanation (`rationale`) for your selection. Explain *why* you chose those specific files based on the user's goal and the project structure.
+    **STEP 1: DETERMINE USER INTENT**
+    First, analyze the `User's Latest Request` in the context of the `Conversation History` to determine the user's intent. There are two possibilities:
+    - `find_files`: The user is asking for help with a coding task, implying a need to find relevant files. (e.g., "add login", "fix the form bug", "فرم ها").
+    - `chat_reply`: The user is making small talk, asking a general question, or giving feedback. (e.g., "salam", "thanks", "چطوری؟").
 
-    **Analysis Rules:**
-    1.  **Context is Key:** Use the entire `Conversation History` to understand the user's evolving goal. The latest message is the primary focus, but the history provides context.
-    2.  **Dependency Analysis:** Use the `Project Dependency Map` to trace connections between files.
-    3.  **Naming Conventions:** Use file names as a strong hint (e.g., `form_controller.dart` is relevant to "forms").
-    4.  **Comprehensive Selection:** Include every file in the logical chain. It's better to be slightly over-inclusive than to miss a critical dependency.
-    5.  **Output Format:** Your output MUST be a valid JSON object with two keys:
-        * `"relevant_files"`: An array of strings, where each string is a full file path.
-        * `"rationale"`: A string containing your analysis and reasoning, written in clear Persian.
+    **STEP 2: EXECUTE BASED ON INTENT**
+
+    **IF `intent` is `find_files`:**
+    You must perform a **rigorous and exhaustive dependency analysis**. Your reputation depends on your thoroughness.
+    
+    **Analysis Protocol:**
+    a. **Seed Files:** Identify the initial "seed" files that obviously match the user's request from the `Project Dependency Map`.
+    b. **Forward Trace (Recursive):** For each seed file, find all files it `import`s. For each of *those* files, find all files *they* `import`. Continue this process recursively until you can't find any new dependencies. Add all found files to your list.
+    c. **Reverse Trace (Crucial):** Search the ENTIRE `Project Dependency Map` again. Find every file that `import`s any of the files you have collected so far (from steps a and b). This is critical for finding files that *use* the core feature.
+    d. **Be Exhaustive:** It is better to include a file that might be slightly related than to miss a critical one. Combine all files from steps a, b, and c into a single, de-duplicated list.
+
+    **Response Generation (for `find_files`):**
+    - After your analysis is complete, generate a `response_text`.
+    - **DO NOT** just list the files. Explain your findings like a helpful colleague. Summarize your process. For example: "برای کار روی فرم‌ها، اول فایل‌های اصلی مثل کنترلر و سرویس رو پیدا کردم. بعدش دیدم که اینا به چندتا مدل و ویجت دیگه هم وصلن، و در نهایت صفحاتی که از این فرم‌ها استفاده می‌کنن رو هم به لیست اضافه کردم تا چیزی از قلم نیفته. این لیست کاملشه، نظرت چیه؟"
+    - Your final output MUST be a JSON object with `intent: "find_files"`, the complete `relevant_files` list, and your `response_text`.
+
+    **IF `intent` is `chat_reply`:**
+    - Simply generate a friendly, conversational `response_text` in Persian.
+    - Your final output MUST be a JSON object with `intent: "chat_reply"`, `relevant_files: []`, and your `response_text`.
+
+    ---
+    **CONTEXT FOR YOUR ANALYSIS**
 
     **Conversation History:**
     ```
     $historyString
     ```
     
-    **User's Latest Request:** "$userFocus"
+    **User's Latest Request:** "$userPrompt"
 
     **Project Dependency Map (File Path -> Imports/Exports):**
     ```
     $importsData
     ```
-
-    **Example JSON Output:**
-    ```json
-    {
-      "relevant_files": [
-        "lib/presentation/screens/forms/user_form_screen.dart",
-        "lib/presentation/controllers/forms/user_form_controller.dart",
-        "lib/presentation/widgets/custom_text_field.dart"
-      ],
-      "rationale": "برای پیاده‌سازی فرم‌ها، فایل صفحه اصلی `user_form_screen.dart` به عنوان رابط کاربری، `user_form_controller.dart` برای مدیریت منطق و وضعیت، و `custom_text_field.dart` به عنوان ویجت ورودی مشترک، ضروری هستند. این سه فایل هسته اصلی این قابلیت را تشکیل می‌دهند."
-    }
-    ```
-
-    Now, perform a deep analysis and generate the JSON output.
+    ---
+    Now, perform your analysis and generate the response in the correct JSON format.
     """;
   }
 
-  String _buildHeaderPromptV2({
-    required String directoryTree,
-    required String userGoal,
-    required String pubspecContent,
-    required List<String> aiSuggestedFiles,
-    required List<String> finalSelectedFiles,
-    required String fullProjectContent,
-  }) {
+  // <<< اصلاح کلیدی: پرامپت برای گنجاندن نمودار درختی کامل پروژه به‌روز شد >>>
+  String _buildHeaderPromptV2(
+      {required String directoryTree,
+      required String userGoal,
+      required List<String> finalSelectedFiles,
+      required String fullProjectContent,
+      required String pubspecContent}) {
     final finalFilesString = finalSelectedFiles.map((f) => '- $f').join('\n');
 
     return """
@@ -252,27 +273,14 @@ class GeminiService {
     This document must provide a deep and insightful overview of the user's project and their goal, based on the FULL source code provided.
 
     **Your Instructions:**
-    1.  **Analyze Everything:** You have access to the user's goal, the final list of files they've selected for the task, and the ENTIRE project's source code.
+    1.  **Analyze Everything:** You have access to the user's goal, the final list of files they've selected for the task, the project's full directory tree, and the ENTIRE project's source code.
     2.  **Synthesize, Don't Just List:** Do not just repeat the data. Your primary value is to synthesize this information into a coherent, intelligent analysis.
     3.  **Explain the "Why":** Based on your analysis of the full code, explain *why* the user's goal is relevant to the project and *why* the selected files are the correct ones for the job. What is the overall architecture? How do these selected files fit into it?
     4.  **Provide a High-Level Summary:** Give a brief overview of what the project does.
     5.  **Structure the Output:** Fill in the template below with your analysis. Be clear, concise, and professional. The final output should ONLY be the completed markdown template.
 
-    **User's Goal:**
-    "$userGoal"
-
-    **Final List of Files for the Task:**
-    ```
-    $finalFilesString
-    ```
-
-    **Full Project Source Code (for your analysis):**
-    ```
-    $fullProjectContent
-    ```
-
     **================ TEMPLATE TO COMPLETE ================**
-    # AI CONTEXT DOCUMENT - V4.0 - DEEP ANALYSIS
+    # AI CONTEXT DOCUMENT - V4.1 - FULL STRUCTURE ANALYSIS
     ############################################################
 
     ### SECTION 1: PROJECT OVERVIEW
@@ -286,8 +294,15 @@ class GeminiService {
     # [**Your analysis of how this goal fits into the project goes here.**]
     # Example: To achieve this, the user needs to modify the authentication flow. The selected files represent the complete chain of logic for this feature, from the UI (login_screen.dart) to the business logic (auth_controller.dart) and the backend communication (api_service.dart).
 
-    ### SECTION 3: FINAL AND DEFINITIVE FILE MANIFEST
-    # The following files, and ONLY these files, have been selected for the task. This is the single source of truth for the next AI.
+    ### SECTION 3: PROJECT STRUCTURE & FILE MANIFEST
+    # To provide complete context for the task, below is the full directory tree of the project, followed by the specific files selected for modification.
+
+    # Full Project Directory Tree:
+    # ```
+    # $directoryTree
+    # ```
+    #
+    # The following files, and ONLY these files, have been selected for the current task. This is the single source of truth for the next AI.
     #
     # Final User-Selected Files:
     # $finalFilesString

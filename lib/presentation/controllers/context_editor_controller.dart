@@ -31,7 +31,6 @@ class ContextEditorController extends GetxController {
   final RxList<TreeNode> treeNodes = <TreeNode>[].obs;
 
   // File Lists
-  // <<< اصلاح کلیدی: افزودن مجدد تعریف متغیر فراموش شده >>>
   final RxList<String> aiSuggestedFiles = <String>[].obs;
   final RxList<String> userFinalSelection = <String>[].obs;
 
@@ -54,7 +53,7 @@ class ContextEditorController extends GetxController {
 
     chatHistory.add(ChatMessage(
       text:
-          'سلام! برای شروع، حوزه تمرکز یا درخواست خود را در کادر پایین وارد کنید تا فایل‌های مرتبط را برایتان پیدا کنم.',
+          'سلام! من دستیار هوشمند شما هستم. برای شروع، درخواستت رو بگو تا فایل‌های مرتبط رو برات پیدا کنم.',
       sender: MessageSender.ai,
       timestamp: DateTime.now(),
     ));
@@ -118,15 +117,14 @@ class ContextEditorController extends GetxController {
     treeNodes.value = rootNodes;
   }
 
-  Future<void> findFilesWithAi({required String userPrompt}) async {
+  /// <<< اصلاح شده: این متد اکنون پاسخ چندحالته AI را مدیریت می‌کند >>>
+  Future<void> _processUserPrompt({required String userPrompt}) async {
     if (userPrompt.trim().isEmpty) {
-      Get.snackbar('خطا', 'لطفاً درخواست خود را وارد کنید.');
       return;
     }
 
     isAiFindingFiles.value = true;
-    statusMessage.value =
-        'هوش مصنوعی در حال تحلیل درخواست شما و وابستگی‌های پروژه است...';
+    statusMessage.value = 'در حال فکر کردن...';
 
     final userMessage = ChatMessage(
         text: userPrompt,
@@ -140,38 +138,44 @@ class ContextEditorController extends GetxController {
         (path, content) => MapEntry(path, _fileService.extractImports(content)),
       );
 
-      final aiResponse = await _geminiService.findRelevantFiles(
+      final aiResponse = await _geminiService.getAiResponse(
         projectImports: projectImports,
-        userFocus: userPrompt,
+        userPrompt: userPrompt,
         chatHistory: chatHistory,
       );
 
+      // افزودن پاسخ AI به تاریخچه
       final aiMessage = ChatMessage(
-        text: aiResponse.rationale,
+        text: aiResponse.responseText,
         sender: MessageSender.ai,
         timestamp: DateTime.now(),
-        rationale: aiResponse.rationale,
       );
       chatHistory.add(aiMessage);
 
-      final normalizedRelevantFiles =
-          aiResponse.relevantFiles.map(_normalizePath).toList();
+      // بر اساس قصد AI، عملیات مناسب را انجام بده
+      if (aiResponse.intent == AiIntent.findFiles) {
+        final normalizedRelevantFiles =
+            aiResponse.relevantFiles.map(_normalizePath).toList();
 
-      aiSuggestedFiles.assignAll(normalizedRelevantFiles);
-      userFinalSelection.assignAll(normalizedRelevantFiles);
+        aiSuggestedFiles.assignAll(normalizedRelevantFiles);
+        userFinalSelection.assignAll(normalizedRelevantFiles);
 
-      _expandToSelection(treeNodes, userFinalSelection);
+        _expandToSelection(treeNodes, userFinalSelection);
 
-      statusMessage.value =
-          '${aiResponse.relevantFiles.length} فایل مرتبط پیدا شد. تحلیل AI را در چت ببینید.';
+        statusMessage.value =
+            '${aiResponse.relevantFiles.length} فایل مرتبط پیدا شد. نظرت چیه؟';
+      } else {
+        // اگر فقط یک پاسخ چت بود، کاری با فایل‌ها نداریم
+        statusMessage.value = 'آماده دریافت دستور بعدی شما.';
+      }
     } catch (e) {
-      statusMessage.value = 'خطا در تحلیل AI.';
+      statusMessage.value = 'خطا در ارتباط با AI.';
       final errorMessage = ChatMessage(
-          text: 'متاسفانه در پردازش درخواست شما خطایی رخ داد: $e',
+          text: 'متاسفانه یه مشکلی پیش اومد: $e',
           sender: MessageSender.ai,
           timestamp: DateTime.now());
       chatHistory.add(errorMessage);
-      debugPrint('An error occurred in findFilesWithAi: $e');
+      debugPrint('An error occurred in _processUserPrompt: $e');
       Get.snackbar('خطای تحلیل', e.toString());
     } finally {
       isAiFindingFiles.value = false;
@@ -180,17 +184,21 @@ class ContextEditorController extends GetxController {
 
   void sendChatMessage() {
     final prompt = chatInputController.text;
-    findFilesWithAi(userPrompt: prompt);
+    _processUserPrompt(userPrompt: prompt);
     focusController.text = prompt;
     chatInputController.clear();
   }
 
   void findFilesFromPanel() {
     final prompt = focusController.text;
-    findFilesWithAi(userPrompt: prompt);
+    _processUserPrompt(userPrompt: prompt);
   }
 
   void _expandToSelection(List<TreeNode> nodes, List<String> selection) {
+    for (var node in nodes) {
+      // ابتدا تمام گره‌ها را می‌بندیم تا درخت تمیز شود
+      if (!node.isFile) node.isExpanded.value = false;
+    }
     for (var node in nodes) {
       bool hasSelectedChild = _nodeContainsSelection(node, selection);
       if (hasSelectedChild) {
@@ -243,7 +251,6 @@ class ContextEditorController extends GetxController {
         directoryTree: directoryTree,
         userGoal: goalController.text.trim(),
         pubspecContent: pubspecContent,
-        aiSuggestedFiles: aiSuggestedFiles,
         finalSelectedFiles: userFinalSelection,
         fullProjectContent: fullProjectContent,
       );
