@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
-import 'settings_service.dart'; // <<< جدید: ایمپورت سرویس تنظیمات
+import 'settings_service.dart';
 import '../../core/models/chat_message.dart';
 
-// ... (کلاس‌های AiIntent و AiChatResponse بدون تغییر باقی می‌مانند) ...
+// کلاس‌های AiIntent و AiChatResponse بدون تغییر باقی می‌مانند
 enum AiIntent {
   findFiles,
   chatReply,
@@ -42,10 +42,8 @@ class AiChatResponse {
 }
 
 class GeminiService extends GetxService {
-  // <<< اصلاح: وابستگی به سرویس تنظیمات >>>
   final SettingsService _settingsService = Get.find();
 
-  // <<< اصلاح: لیست کلیدهای API دیگر هاردکد نیست >>>
   late List<String> _apiKeys;
   int _currentKeyIndex = 0;
 
@@ -68,7 +66,7 @@ class GeminiService extends GetxService {
     if (_apiKeys.isEmpty) throw Exception("هیچ کلید API برای جمنای یافت نشد.");
     final currentKey = _apiKeys[_currentKeyIndex];
     return GenerativeModel(
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash', // مدل به‌روز شده برای کارایی بهتر
       apiKey: currentKey,
       generationConfig: GenerationConfig(
         responseMimeType: "application/json",
@@ -81,7 +79,7 @@ class GeminiService extends GetxService {
     if (_apiKeys.isEmpty) throw Exception("هیچ کلید API برای جمنای یافت نشد.");
     final currentKey = _apiKeys[_currentKeyIndex];
     return GenerativeModel(
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash', // مدل به‌روز شده
       apiKey: currentKey,
       generationConfig: GenerationConfig(
         responseMimeType: "text/plain",
@@ -98,12 +96,12 @@ class GeminiService extends GetxService {
 
   Future<String> _generateWithRetry(String prompt,
       {bool forJson = true}) async {
-    // <<< جدید: هر بار کلیدها را مجدداً بارگذاری می‌کنیم تا تغییرات اعمال شوند >>>
+    // <<< اصلاح کلیدی: بارگذاری مجدد کلیدها قبل از هر درخواست >>>
     _loadApiKeys();
 
     if (_apiKeys.isEmpty) {
       throw Exception(
-          "هیچ کلید API برای استفاده وجود ندارد. لطفاً از بخش تنظیمات کلید خود را اضافه کنید.");
+          "برای استفاده وجود ندارد. لطفاً از بخش تنظیمات کلید خود را اضافه کنید.");
     }
 
     debugPrint("===================== PROMPT SENT TO AI =====================");
@@ -154,7 +152,7 @@ class GeminiService extends GetxService {
     throw Exception("تمام کلیدهای API به دلیل محدودیت یا خطا ناموفق بودند.");
   }
 
-  // ... (متدهای getAiResponse, generateAiHeader, و پرامپت‌ها بدون تغییر باقی می‌مانند) ...
+  // متدهای getAiResponse, generateAiHeader, و پرامپت‌ها بدون تغییر باقی می‌مانند
   Future<AiChatResponse> getAiResponse({
     required Map<String, String> projectImports,
     required String userPrompt,

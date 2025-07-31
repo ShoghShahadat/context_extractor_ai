@@ -71,11 +71,11 @@ class SettingsScreen extends GetView<SettingsController> {
                   Iconsax.folder_minus,
                 ),
                 const SizedBox(height: 40),
-                GradientButton(
-                  onPressed: controller.saveSettings,
-                  label: const Text('ذخیره تغییرات'),
-                  icon: const Icon(Iconsax.save_2, color: AppColors.onPrimary),
-                ),
+                // GradientButton(
+                //   onPressed: controller.saveSettings,
+                //   label: const Text('ذخیره تغییرات'),
+                //   icon: const Icon(Iconsax.save_2, color: AppColors.onPrimary),
+                // ),
               ],
             ),
           ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <<< جدید: برای مدیریت خطاهای پلتفرم
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/settings_service.dart';
@@ -36,54 +36,53 @@ class SettingsController extends GetxController {
     excludedDirs.assignAll(_settingsService.getExcludedDirs());
   }
 
-  /// ذخیره تمام تنظیمات در سرویس
-  Future<void> saveSettings() async {
-    await _settingsService.saveApiKeys(apiKeys);
-    await _settingsService.saveExcludedDirs(excludedDirs);
-    Get.snackbar(
-      'موفقیت',
-      'تنظیمات با موفقیت ذخیره شد.',
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
-    );
-  }
+  // متد saveSettings دیگر مورد نیاز نیست چون ذخیره به صورت خودکار انجام می‌شود.
 
   // --- API Key Management ---
-  void addApiKey() {
+  Future<void> addApiKey() async {
     final key = apiKeyController.text.trim();
     if (key.isNotEmpty && !apiKeys.contains(key)) {
       apiKeys.add(key);
       apiKeyController.clear();
+      // <<< اصلاح کلیدی: ذخیره خودکار لیست پس از افزودن >>>
+      await _settingsService.saveApiKeys(apiKeys);
+      Get.snackbar('موفقیت', 'کلید API با موفقیت اضافه و ذخیره شد.');
     }
   }
 
-  void removeApiKey(String key) {
+  Future<void> removeApiKey(String key) async {
     apiKeys.remove(key);
+    // <<< اصلاح کلیدی: ذخیره خودکار لیست پس از حذف >>>
+    await _settingsService.saveApiKeys(apiKeys);
+    Get.snackbar('موفقیت', 'کلید API با موفقیت حذف و ذخیره شد.');
   }
 
   // --- Excluded Directory Management ---
-  void addExcludedDir() {
+  Future<void> addExcludedDir() async {
     final dir = excludedDirController.text.trim();
     if (dir.isNotEmpty && !excludedDirs.contains(dir)) {
       excludedDirs.add(dir);
       excludedDirController.clear();
+      // <<< اصلاح کلیدی: ذخیره خودکار لیست پس از افزودن >>>
+      await _settingsService.saveExcludedDirs(excludedDirs);
+      Get.snackbar('موفقیت', 'پوشه با موفقیت اضافه و ذخیره شد.');
     }
   }
 
-  void removeExcludedDir(String dir) {
+  Future<void> removeExcludedDir(String dir) async {
     excludedDirs.remove(dir);
+    // <<< اصلاح کلیدی: ذخیره خودکار لیست پس از حذف >>>
+    await _settingsService.saveExcludedDirs(excludedDirs);
+    Get.snackbar('موفقیت', 'پوشه با موفقیت حذف و ذخیره شد.');
   }
 
-  // <<< اصلاح کلیدی: افزودن مدیریت خطا برای پایداری بیشتر >>>
   Future<void> launchApiKeyUrl() async {
     final Uri url = Uri.parse('https://aistudio.google.com/apikey');
     try {
-      // تلاش برای باز کردن لینک در یک برنامه خارجی (مرورگر پیش‌فرض)
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw 'Could not launch $url';
       }
     } on PlatformException catch (e) {
-      // این بخش خطای MissingPluginException را مدیریت می‌کند
       debugPrint("Failed to launch URL: ${e.message}");
       Get.snackbar(
         'خطای پلتفرم',
@@ -92,7 +91,6 @@ class SettingsController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      // مدیریت سایر خطاها
       debugPrint("An unexpected error occurred: $e");
       Get.snackbar(
         'خطا',
